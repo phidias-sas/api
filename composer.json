@@ -1,0 +1,22 @@
+{
+    "name": "phidias/api",
+    "description": "Phidias API Server",
+    "license": "GPL-3.0",
+    "authors": [
+        {
+            "name": "Santiago Cortés",
+            "email": "santiago.cortes@phidias.com"
+        }
+    ],
+
+    "autoload": {
+        "psr-4": {
+            "Phidias\\Api\\": "src/"
+        }
+    },
+
+    "require": {
+        "php": ">=5.4.0",
+        "psr/http-message": "~1.0"
+    }
+}

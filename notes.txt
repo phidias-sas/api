@@ -1,0 +1,266 @@
+Notes on coding style:
+
+PSR-7 has sparked interesting responses (http://evertpot.com/psr-7-issues/)
+
+This is the favored style:
+
+new Object
+    ->withThing("value") // setter (immutable)
+    ->thing("value")     // setter (mutable)
+
+    ->getThing()         // getter
+
+
+
+
+# The main idea
+
+You should code your application logic without concerning HTTP interactions.
+
+class myClass
+{
+    function myFunction($something)
+    {
+        if ($somethingGoesWrong) {
+            throw myException;
+        }
+
+        switch ($something) {
+
+            case "a":
+                return new myOtherClass;
+
+            case "b":
+                return new myOtherClass;
+
+            default:
+                return new myYetAnotherClass;
+
+        }
+    }
+}
+
+
+You should be able to easily create HTTP interactions around it,
+for example:
+
+Respond:
+GET /my/resource?something=a
+Accept: application/json
+
+With:
+200 OK
+Content-Type: application/json
+X-My-Header: My header value
+
+{
+    "class": "myOtherClass",
+    "someObject": {...}
+    "someProperty": "someValue",
+}
+
+
+# How we could implement the above example
+
+index.php:
+```
+<?php
+
+use Phidias\Api\Server;
+
+Server::resource("/my/resource", [
+
+    "get" => [
+
+        "controller" => "myClass->myFunction({request.argument.something})",
+
+        "template" => "/path/to/my/template.json.php",
+
+        "headers" => [
+            "X-My-Header" => "My header value"
+        ]
+
+    ]
+
+]);
+
+Server::run();
+
+```
+
+/path/to/my/template.json.php:
+````
+<?php
+/*
+This is a PHP script, but can be replaced with
+custom files (like Smarty templates for example)
+
+$request and $response are declared globally and are PSR-7 compliant
+*/ 
+
+$whatTheControllerReturned = $response->getData();
+
+?>
+{
+    "class": "<?= get_class($whatTheControllerReturned) ?>",
+    "someObject": <?= json_encode($whatTheControllerReturned) ?>,
+    "someProperty": "someValue"
+}
+
+
+# The whole enchilada
+
+## Without syntax helpers (i.e. constructing objects from arrays) and declaring all necessary imports ("use")
+
+<?php
+
+use Phidias\Api\Server;
+use Phidias\Api\Resource;
+use Phidias\Api\Dispatcher;
+
+Server::resource(<url pattern>, (new Resource())
+
+    ->method(<method name>, (new Dispatcher())
+
+        ->authentication(<bool callback>)
+        ->authorization(<bool callback>)
+        ->validation(<bool callback>)
+        ->controller(<callback>)
+        ->template(<template>)
+        ->filter(<callback>)
+
+        ->catch("<exception class>", <callback>)
+
+    )
+)
+
+
+A callback may be:
+
+
+a) a string
+
+"myClass->myMethod({argument})"
+
+where subtrstrings surounded in {} are considered arguments from the url, or 
+from the global request and resource.  For example:
+
+```
+Server::resource("history/{year}/{month}/{date}", (new Resource()
+
+    ->method("get", new Dispatcher()
+
+        ->controller("myClass->findDate({year}, {month}, {date})")
+
+        ->filter("myClass->messWithResponse({response})")
+
+    )
+)
+
+You can also access request and response attributes from the string.
+i.e.
+
+
+b) A closure
+
+Which will recieve the arguments shown:
+
+function ($request, $response) {
+    
+}
+
+
+Bool callbacks MUST return a boolean value.
+Depending on the return value the dispatcher may be interrupted
+and throw an exception (validationException, authenticationException, etc)
+
+
+
+Dispatcher exceptions:
+Phidias\Api\Dispatcher\Exception\AuthenticationException
+Phidias\Api\Dispatcher\Exception\AuthorizationException
+Phidias\Api\Dispatcher\Exception\ValidationException
+Phidias\Api\Dispatcher\Exception\TemplateEngineException
+
+
+Common errors:
+
+Server::onNotFound(<dispatcher>);
+Server::onMethodNotAllowed(<dispatcher>);
+
+
+
+
+
+
+
+
+
+
+# Setting global actions
+
+Server::resource("*", (new Resource())
+
+    ->abstract(true)
+
+    ->method("any", new Dispatcher())
+
+        // Add a header to all requests
+        ->filter(function($request, $response) {
+            $response->header("X-Powered-By", "myApi/1.0")
+        })
+
+        // Handle authentication exceptions (which ocurr when an authentication callback returns false)
+        ->catch("Phidias\Api\Dispatcher\Exception\AuthenticationException", function($request, $response, $exception) {
+
+            //... deal with the authentication arror
+
+            // tinker with the response
+            $response->header("X-My-Header", "Sorry")
+        })
+
+        // Handle any exception
+        ->catch("\Exception", function($request, $response, $exception) {
+
+            $response
+                ->status(500)
+                ->header("Content-Type", "application/json")
+                ->body(json_encode($exception));
+
+        })
+
+    ))
+
+);
+
+
+
+Server::run();
+
+
+
+
+Server::resource("*", (new Resource())
+
+    // you see, technically this is a resource declaration
+    // and so the server assumes ANY resource and ANY method exist,
+    // and will never throw a 404.
+
+    // to avoid this, a resource may be declared as ABSTRACT,
+    // in which case it will ONLY provide dispatchers as additions to
+    // found resources
+
+    ->abstract(true)
+
+    ->method("any", new Dispatcher()
+        ->template(function findSuitableTemplate($data, $mimetype) {
+
+            $basedir    = "templates";
+            $type       = get_type($data);
+            $targetFile = "$basedir/$mimetype/$type.php";
+
+            return $targetFile;
+        })
+    ))
+
+);

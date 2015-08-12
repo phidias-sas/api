@@ -1,0 +1,136 @@
+<?php
+namespace Phidias\Api\Server;
+
+use Phidias\Utilities\Configuration;
+use Phidias\Utilities\Debugger;
+
+use Phidias\Api\Server\Module\Autoloader;
+
+class Module
+{
+    //Default folder structure
+    const DIR_INITIALIZATION = 'initialize';
+    const DIR_LIBRARIES      = 'libraries';
+    const DIR_CONFIGURATION  = 'configuration';
+    const DIR_RESOURCES      = 'resources';
+    const DIR_TEMPLATES      = 'templates';
+    const DIR_TEMPORARY      = 'temporary';
+
+    public static function load(Instance $server, $path)
+    {
+        if (! is_dir($path)) {
+            trigger_error("cannot load: '$path' is not a valid folder", E_USER_ERROR);
+        }
+
+        Debugger::startBlock("Loading module '$path'");
+
+        $path = $path."/";
+
+        Autoloader::path($path.self::DIR_LIBRARIES);
+
+        self::loadConfiguration($server, $path);
+        self::loadResources($server, $path);
+
+        $server->onInitialize(function() use ($server, $path) {
+            self::runInitialization($server, $path);
+        });
+
+        Debugger::endBlock("Loading module '$path'");
+    }
+
+    private static function runInitialization($server, $path)
+    {
+        foreach (self::readAllFolder($path.self::DIR_INITIALIZATION) as $file) {
+            include $file;
+        }
+    }
+
+    private static function loadConfiguration($server, $path)
+    {
+        foreach (self::readAllFolder($path.self::DIR_CONFIGURATION) as $file) {
+            Configuration::set(include $file);
+        }
+
+    }
+
+    private static function loadResources($server, $path)
+    {
+        foreach (self::readAllFolder($path.self::DIR_RESOURCES) as $file) {
+            $server->resource(include $file);
+        }
+    }
+
+
+    private static function readAllFolder($folder, $subfoldersFirst = true, $rootFolder = null)
+    {
+        $files   = [];
+        $folders = [];
+
+        if ($rootFolder === null) {
+            $rootFolder = $folder;
+            $folder  = null;
+        }
+
+        if (!is_dir("$rootFolder/$folder")) {
+            return [];
+        }
+
+        foreach (self::readFolder("$rootFolder/$folder") as $basename) {
+
+            $item = $folder === null ? $basename : "$folder/$basename";
+
+            if (is_file("$rootFolder/$item")) {
+                $files[] = "$rootFolder/$item";
+            } else {
+                $folders[] = $item;
+            }
+        }
+
+        $retval = [];
+
+        if ($subfoldersFirst) {
+            foreach ($folders as $subdir) {
+                $retval = array_merge($retval, self::readAllFolder($subdir, $subfoldersFirst, $rootFolder));
+            }
+            $retval = array_merge($retval, $files);
+        } else {
+            $retval = $files;
+            foreach ($folders as $subdir) {
+                $retval = array_merge($retval, self::readAllFolder($subdir, $subfoldersFirst, $rootFolder));
+            }
+        }
+
+        return $retval;
+    }
+
+    /**
+     * Returns all files and folders contained in $folder
+     * relative to $folder
+     */
+    private static function readFolder($folder)
+    {
+        if ($handle = opendir($folder)) {
+
+            $entries = [];
+
+            /* This is the correct way to loop over the folder. */
+            while (false !== ($entry = readdir($handle))) {
+
+                //ignore . and ..
+                if ($entry === "." || $entry === "..") {
+                    continue;
+                }
+
+                $entries[] = $entry;
+            }
+
+            closedir($handle);
+
+            return $entries;
+        }
+
+        return null;
+    }
+
+
+}

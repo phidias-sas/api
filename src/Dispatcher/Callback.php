@@ -28,7 +28,7 @@ class Callback
         
         } else {
             $arguments = [
-                $this->request,
+                $this->request->withAttributes($arguments),
                 $this->response,
                 $this->data
             ];

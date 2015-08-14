@@ -40,25 +40,47 @@ class Dispatcher implements DispatcherInterface
 
     public static function factory($array)
     {
-        $retval = new Dispatcher;
+        $dispatcher = new Dispatcher;
 
         if (isset($array["validate"])) {
             foreach ( (array)$array["validate"] as $validator ) {
-                $retval->validator($validator);
+                $dispatcher->validator($validator);
             }
         }
 
         if (isset($array["controller"])) {
-            $retval->controller($array["controller"]);
+            $dispatcher->controller($array["controller"]);
+        }
+
+        if (isset($array["template"])) {
+
+            if (is_string($array["template"])) {
+                $dispatcher->template($array["template"]);
+            } else {
+
+                foreach ($array["template"] as $mimetype => $templateData) {
+
+                    if (is_string($templateData)) {
+                        $dispatcher->template($templateData, $mimetype);
+                    } else {
+                        foreach ($templateData as $objectType => $templateFile) {
+                            $dispatcher->template($templateFile, $mimetype, $objectType);
+                        }
+                    }
+
+                }
+
+            }
+
         }
 
         if (isset($array["filter"])) {
             foreach ( (array)$array["filter"] as $filter ) {
-                $retval->filter($filter);
+                $dispatcher->filter($filter);
             }
         }
 
-        return $retval;
+        return $dispatcher;
     }
 
 

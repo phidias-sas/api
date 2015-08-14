@@ -76,6 +76,11 @@ class ServerRequest extends Request implements ServerRequestInterface
         return $this->queryParams;
     }
 
+    public function getParameter($parameterName, $defaultValue = null)
+    {
+        return isset($this->queryParams[$parameterName]) ? $this->queryParams[$parameterName] : $defaultValue;
+    }
+
     /**
      * Return an instance with the specified query string arguments.
      *

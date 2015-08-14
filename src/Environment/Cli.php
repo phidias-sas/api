@@ -1,7 +1,7 @@
 <?php
 namespace Phidias\Api\Environment;
 
-use Phidias\Api\Response;
+use Phidias\Api\Http\Response;
 
 class Cli implements EnvironmentInterface
 {

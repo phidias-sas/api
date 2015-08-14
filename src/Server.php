@@ -47,9 +47,4 @@ class Server
         return self::getInstance()->onInitialize($callback);
     }
 
-    public static function debug()
-    {
-        echo "<pre>" . print_r($self::$instance, true) . "</pre>";
-    }
-
 }

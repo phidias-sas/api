@@ -9,6 +9,23 @@ class Resource
     private $dispatchers;
     private $isAbstract;
 
+    public static function factory($arrayResourceData)
+    {
+        $resource = new Resource;
+
+        if (isset($array["abstract"]) && $array["abstract"]) {
+            $resource->isAbstract();
+        }
+
+        foreach ($arrayResourceData as $key => $arrayDispatcherData) {
+            if (in_array(strtolower($key), ["get", "post", "put", "delete", "any"])) {
+                $resource->method(strtolower($key), Dispatcher::factory($arrayDispatcherData));
+            }
+        }
+
+        return $resource;
+    }
+
     public function __construct($dispatchers = null)
     {
         $this->arguments   = [];
@@ -19,7 +36,6 @@ class Resource
     public function method($methodName, Dispatcher $dispatcher)
     {
         $methodName = strtolower($methodName);
-
         $this->dispatchers[$methodName] = isset($this->dispatchers[$methodName]) ? $this->dispatchers[$methodName]->merge($dispatcher) : $dispatcher;
 
         return $this;
@@ -51,11 +67,19 @@ class Resource
     public function getDispatcher($methodName)
     {
         $methodName = strtolower($methodName);
+
         if (!isset($this->dispatchers[$methodName])) {
+
+            if (isset($this->dispatchers["any"])) {
+                return $this->dispatchers["any"];
+            }
+
             throw new Exception\MethodNotImplemented($methodName, $this->getImplementedMethods);
         }
 
-        return $this->dispatchers[$methodName];
+        $genericDispatcher = isset($this->dispatchers["any"]) ? $this->dispatchers["any"] : null;
+
+        return $genericDispatcher === null ? $this->dispatchers[$methodName] : $genericDispatcher->merge($this->dispatchers[$methodName]);
     }
 
 

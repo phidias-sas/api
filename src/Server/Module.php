@@ -5,28 +5,35 @@ use Phidias\Utilities\Configuration;
 use Phidias\Utilities\Debugger;
 
 use Phidias\Api\Server\Module\Autoloader;
+use Phidias\Api\Server\Module\Installer;
 
 class Module
 {
     //Default folder structure
     const DIR_INITIALIZATION = 'initialize';
-    const DIR_LIBRARIES      = 'libraries';
+    const DIR_SOURCES        = 'src';
     const DIR_CONFIGURATION  = 'configuration';
     const DIR_RESOURCES      = 'resources';
     const DIR_TEMPLATES      = 'templates';
     const DIR_TEMPORARY      = 'temporary';
 
-    public static function load(Instance $server, $path)
+    public static function load(Instance $server, $moduleFolder)
     {
-        if (! is_dir($path)) {
-            trigger_error("cannot load: '$path' is not a valid folder", E_USER_ERROR);
+        $path = realpath($moduleFolder);
+
+        if (! $path) {
+            trigger_error("cannot load: '$moduleFolder' is not a valid folder", E_USER_ERROR);
         }
 
         Debugger::startBlock("Loading module '$path'");
 
         $path = $path."/";
 
-        Autoloader::path($path.self::DIR_LIBRARIES);
+        if (is_file("$path/vendor/autoload.php")) {
+            include "$path/vendor/autoload.php";
+        } elseif (is_dir($path.self::DIR_SOURCES)) {
+            Autoloader::path($path.self::DIR_SOURCES);
+        }
 
         self::loadConfiguration($server, $path);
         self::loadResources($server, $path);
@@ -37,6 +44,29 @@ class Module
 
         Debugger::endBlock("Loading module '$path'");
     }
+
+    public static function install($modules)
+    {
+        /* Step 1: Include all configuration */
+        foreach ($modules as $path) {
+            foreach (self::readAllFolder($path."/".self::DIR_CONFIGURATION) as $file) {
+                Configuration::set(include $file);
+            }
+        }
+
+        /* Step 2: Run all modules initialization */
+        foreach ($modules as $path) {
+            foreach (self::readAllFolder($path."/".self::DIR_INITIALIZATION) as $file) {
+                include $file;
+            }
+        }
+
+        /* Step 3: Run installation scripts */
+        foreach ($modules as $path) {
+            (new Installer($path))->install();
+        }
+    }
+
 
     private static function runInitialization($server, $path)
     {
@@ -131,6 +161,5 @@ class Module
 
         return null;
     }
-
 
 }

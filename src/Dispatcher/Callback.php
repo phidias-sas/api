@@ -7,11 +7,11 @@ class Callback
     private $response;
     private $data;
 
-    public function __construct($request, $response, $data)
+    public function __construct($request, $response, &$data)
     {
         $this->request  = $request;
         $this->response = $response;
-        $this->data     = $data;
+        $this->data     = &$data;
     }
 
     public function execute($callable, $arguments = [])
@@ -30,7 +30,7 @@ class Callback
             $arguments = [
                 $this->request->withAttributes($arguments),
                 $this->response,
-                $this->data
+                &$this->data
             ];
         }
 

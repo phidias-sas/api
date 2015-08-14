@@ -65,10 +65,14 @@ class Instance
         $this->onMethodNotImplemented = $dispatcher;
     }
 
-    public function resource($path, Resource $resource = null)
+    public function resource($path, $resource = null)
     {
         if (is_array($path)) {
             return $this->resourcesFromArray($path);
+        }
+
+        if (is_array($resource)) {
+            $resource = Resource::factory($resource);
         }
 
         $this->router->store($path, $resource);
@@ -195,15 +199,8 @@ class Instance
 
     private function resourcesFromArray($resources)
     {
-        foreach ($resources as $url => $dispatchers) {
-
-            $resource = new Resource;
-
-            foreach ($dispatchers as $method => $data) {
-                $resource->method($method, Dispatcher::factory($data));
-            }
-
-            $this->resource($url, $resource);
+        foreach ($resources as $url => $arrayResourceData) {
+            $this->resource($url, Resource::factory($arrayResourceData));
         }
 
         return $this;

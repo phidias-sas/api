@@ -3,8 +3,8 @@ namespace Phidias\Api\Server;
 
 use Phidias\Utilities\Configuration;
 use Phidias\Utilities\Debugger;
+use Phidias\Utilities\Autoloader;
 
-use Phidias\Api\Server\Module\Autoloader;
 use Phidias\Api\Server\Module\Installer;
 
 class Module
@@ -29,12 +29,7 @@ class Module
 
         $path = $path."/";
 
-        if (is_file("$path/vendor/autoload.php")) {
-            include "$path/vendor/autoload.php";
-        } elseif (is_dir($path.self::DIR_SOURCES)) {
-            Autoloader::path($path.self::DIR_SOURCES);
-        }
-
+        Autoloader::addPath($path);
         self::loadConfiguration($server, $path);
         self::loadResources($server, $path);
 

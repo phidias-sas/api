@@ -51,12 +51,10 @@ class AccessControl
 
     public function filter($response, $request)
     {
-        if ($this->allowOrigin === "*") {
-            $this->allowOrigin = ($origin = $request->getHeader("origin")[0]) ? $origin : "*";
-        }
+        $origin = ($this->allowOrigin === "*" && $request->hasHeader("origin")) ? $request->getHeader("origin") : $this->allowOrigin;
 
         return $response
-            ->header("Access-Control-Allow-Origin",      $this->allowOrigin)
+            ->header("Access-Control-Allow-Origin",      $origin)
             ->header("Access-Control-Allow-Credentials", $this->allowCredentials)
             ->header("Access-Control-Allow-Headers",     $this->allowHeaders)
             ->header("Access-Control-Allow-Methods",     $this->allowMethods)

@@ -18,7 +18,6 @@
     "require": {
         "php": ">=5.4.0",
         "psr/http-message": "~1.0",
-        "phidias/utilities-autoloader": "^1.0",
         "phidias/utilities-debugger": "^1.0",
         "phidias/utilities-configuration": "^1.0"
     }

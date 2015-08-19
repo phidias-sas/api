@@ -3,7 +3,6 @@ namespace Phidias\Api\Server;
 
 use Phidias\Utilities\Configuration;
 use Phidias\Utilities\Debugger;
-use Phidias\Utilities\Autoloader;
 
 use Phidias\Api\Server\Module\Installer;
 
@@ -29,7 +28,6 @@ class Module
 
         $path = $path."/";
 
-        Autoloader::addPath($path);
         self::loadConfiguration($server, $path);
         self::loadResources($server, $path);
 

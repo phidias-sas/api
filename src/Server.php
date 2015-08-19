@@ -47,4 +47,9 @@ class Server
         return self::getInstance()->onInitialize($callback);
     }
 
+    public static function accessControl()
+    {
+        return self::getInstance()->accessControl;
+    }
+
 }

@@ -15,13 +15,14 @@ use Phidias\Api\Http\Stream;
 class Instance
 {
     private $router;
-    private $accessControl;
 
     private $onNotFound;
     private $onMethodNotImplemented;
 
     private $isInitialized;
     private $initializationCallbacks;
+
+    public $accessControl;
 
     public function __construct()
     {

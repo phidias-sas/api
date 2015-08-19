@@ -39,10 +39,10 @@ class AccessControl
         return $this;
     }
 
-    public function allowAll($request)
+    public function allowAll()
     {
         return $this
-            ->allowOrigin(($origin = $request->getHeader("origin")) ? $origin : "*")
+            ->allowOrigin("*")
             ->allowCredentials(true)
             ->allowHeaders(["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"])
             ->allowMethods(["GET", "POST", "PUT", "DELETE", "OPTIONS"])
@@ -51,6 +51,10 @@ class AccessControl
 
     public function filter($response, $request)
     {
+        if ($this->allowOrigin === "*") {
+            $this->allowOrigin = ($host = $request->getHeader("host")[0]) ? $host : "*";
+        }
+
         return $response
             ->header("Access-Control-Allow-Origin",      $this->allowOrigin)
             ->header("Access-Control-Allow-Credentials", $this->allowCredentials)

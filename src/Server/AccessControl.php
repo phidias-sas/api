@@ -52,7 +52,7 @@ class AccessControl
     public function filter($response, $request)
     {
         if ($this->allowOrigin === "*") {
-            $this->allowOrigin = ($host = $request->getHeader("host")[0]) ? $host : "*";
+            $this->allowOrigin = ($origin = $request->getHeader("origin")[0]) ? $origin : "*";
         }
 
         return $response

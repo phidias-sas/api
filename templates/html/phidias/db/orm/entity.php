@@ -1,2 +1,2 @@
-<?php
-dump($data->fetchAll(true));
+<pre><?php
+print_r($data->fetchAll(true));

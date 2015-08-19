@@ -42,6 +42,14 @@ class Dispatcher implements DispatcherInterface
     {
         $dispatcher = new Dispatcher;
 
+        if (isset($array["authentication"])) {
+            $dispatcher->authentication($array["authentication"]);
+        }
+
+        if (isset($array["authorization"])) {
+            $dispatcher->authorization($array["authorization"]);
+        }
+
         if (isset($array["validate"])) {
             foreach ( (array)$array["validate"] as $validator ) {
                 $dispatcher->validator($validator);
@@ -86,9 +94,9 @@ class Dispatcher implements DispatcherInterface
 
     /**
      * Perform voodoo to obtain a Response for the given ServerRequest
-     * 
+     *
      * @return Http\Response
-     */ 
+     */
     public function dispatch(\Psr\Http\Message\ServerRequestInterface $request)
     {
         $this->request  = $request;
@@ -107,7 +115,7 @@ class Dispatcher implements DispatcherInterface
 
         } catch (\Exception $exception) {
 
-            // See what the handler can do, and 
+            // See what the handler can do, and
             // catch default exceptions when it doesn't
 
             try {
@@ -440,6 +448,6 @@ class Dispatcher implements DispatcherInterface
         }
 
         $property->arguments = $arguments;
-    }    
+    }
 
 }

@@ -21,10 +21,16 @@ class Router
         $this->catchAllNode  = null;
     }
 
-    public function store($path, $data)
+    public function store($path, Resource $data)
     {
         $path = trim($path, " \t./");
-        $targetNode = $this->getNode($path)->setData($data);
+        $targetNode = $this->getNode($path);
+
+        if ($targetNode->data !== null) {
+            $data = $targetNode->data->merge($data);
+        }
+
+        $targetNode->setData($data);
     }
 
     public function find($path)

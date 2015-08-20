@@ -8,13 +8,6 @@ class Instance
 {
     private static $modules = [];
 
-    public $accessControl;
-
-    public function __construct()
-    {
-        $this->accessControl = new AccessControl;
-    }
-
     public function import($path)
     {
         self::$modules[] = realpath($path);

@@ -5,6 +5,8 @@ use Phidias\Api\Dispatcher\Exception;
 use Phidias\Api\Dispatcher\Property;
 use Phidias\Api\Dispatcher\Callback;
 use Phidias\Api\Dispatcher\DispatcherInterface;
+use Phidias\Api\Dispatcher\AccessControl;
+
 
 use Phidias\Utilities\Debugger;
 
@@ -17,6 +19,7 @@ class Dispatcher implements DispatcherInterface
     private $templates;
     private $filters;
     private $exceptions;
+    private $accessControl;
 
     private $templateEngineClass;
 
@@ -33,6 +36,7 @@ class Dispatcher implements DispatcherInterface
         $this->templates           = [];
         $this->filters             = [];
         $this->exceptions          = [];
+        $this->accessControl       = [];
 
         $this->templateEngineClass = "Phidias\Api\Dispatcher\TemplateEngine";
     }
@@ -88,6 +92,10 @@ class Dispatcher implements DispatcherInterface
             }
         }
 
+        if (isset($array["access-control"])) {
+            $dispatcher->accessControl($array["access-control"]);
+        }
+
         return $dispatcher;
     }
 
@@ -110,6 +118,7 @@ class Dispatcher implements DispatcherInterface
 
             $this->execute();
             $this->runFilters();
+            $this->setAccessControl();
 
             $this->render();
 
@@ -302,6 +311,13 @@ class Dispatcher implements DispatcherInterface
         }
     }
 
+    private function setAccessControl()
+    {
+        foreach ($this->accessControl as $ruleProperty) {
+            AccessControl::factory($ruleProperty->value)->filter($this->response, $this->request);
+        }
+    }
+
     private function handleException($exception)
     {
         foreach ($this->exceptions as $exceptionHandler) {
@@ -343,6 +359,11 @@ class Dispatcher implements DispatcherInterface
     {
         $this->controller = new Property($controller);
         return $this;
+    }
+
+    public function accessControl($rule)
+    {
+        $this->accessControl[] = new Property($rule);
     }
 
     public function template($template, $mimetype = null, $datatype = null)
@@ -415,9 +436,10 @@ class Dispatcher implements DispatcherInterface
             $this->controller = $dispatcher->controller;
         }
 
-        $this->templates  = array_merge($this->templates, $dispatcher->templates);
-        $this->filters    = array_merge($this->filters, $dispatcher->filters);
-        $this->exceptions = array_merge($this->exceptions, $dispatcher->exceptions);
+        $this->templates     = array_merge($this->templates, $dispatcher->templates);
+        $this->filters       = array_merge($this->filters, $dispatcher->filters);
+        $this->exceptions    = array_merge($this->exceptions, $dispatcher->exceptions);
+        $this->accessControl = array_merge($this->accessControl, $dispatcher->accessControl);
 
         return $this;
     }

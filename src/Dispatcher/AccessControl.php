@@ -1,5 +1,5 @@
 <?php
-namespace Phidias\Api\Server;
+namespace Phidias\Api\Dispatcher;
 
 class AccessControl
 {
@@ -8,6 +8,37 @@ class AccessControl
     private $allowHeaders;
     private $allowMethods;
     private $exposeHeaders;
+
+    public static function factory($array)
+    {
+        $retval = new AccessControl;
+
+        if ($array === "full") {
+            return $retval->allowFull();
+        }
+
+        if (isset($array["allow-origin"])) {
+            $retval->allowOrigin($array["allow-origin"]);
+        }
+
+        if (isset($array["allow-credentials"])) {
+            $retval->allowCredentials($array["allow-credentials"]);
+        }
+
+        if (isset($array["allow-headers"])) {
+            $retval->allowHeaders((array)$array["allow-headers"]);
+        }
+
+        if (isset($array["allow-methods"])) {
+            $retval->allowMethods((array)$array["allow-methods"]);
+        }
+
+        if (isset($array["expose-headers"])) {
+            $retval->exposeHeaders((array)$array["expose-headers"]);
+        }
+
+        return $retval;
+    }
 
     public function allowOrigin($allowOrigin)
     {
@@ -21,25 +52,25 @@ class AccessControl
         return $this;
     }
 
-    public function allowHeaders($allowHeaders)
+    public function allowHeaders(array $allowHeaders)
     {
         $this->allowHeaders = $allowHeaders;
         return $this;
     }
 
-    public function allowMethods($allowMethods)
+    public function allowMethods(array $allowMethods)
     {
         $this->allowMethods = $allowMethods;
         return $this;
     }
 
-    public function exposeHeaders($exposeHeaders)
+    public function exposeHeaders(array $exposeHeaders)
     {
         $this->exposeHeaders = $exposeHeaders;
         return $this;
     }
 
-    public function allowAll()
+    public function allowFull()
     {
         return $this
             ->allowOrigin("*")

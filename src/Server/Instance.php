@@ -22,13 +22,9 @@ class Instance
     private $isInitialized;
     private $initializationCallbacks;
 
-    public $accessControl;
-
     public function __construct()
     {
         $this->router                  = new Router;
-        $this->accessControl           = new AccessControl;
-
         $this->isInitialized           = false;
         $this->initializationCallbacks = [];
     }
@@ -162,21 +158,9 @@ class Instance
 
         }
 
-        return $this->postProcess($response, $request);
+        return $response;
     }
 
-
-    /**
-     * Final processing before response is returned
-     *
-     * @param ServerRequest
-     * @param Response
-     * @return Response
-     */
-    private function postProcess($response, $request)
-    {
-        return $this->accessControl->filter($response, $request);
-    }
 
     /**
      * Marshall the current request from the environment, execute it and relay the response

@@ -13,7 +13,7 @@ class Resource
     {
         $resource = new Resource;
 
-        if (isset($array["abstract"]) && $array["abstract"]) {
+        if (isset($arrayResourceData["abstract"]) && $arrayResourceData["abstract"]) {
             $resource->isAbstract();
         }
 
@@ -30,7 +30,7 @@ class Resource
     {
         $this->arguments   = [];
         $this->dispatchers = [];
-        $this->isAsbtract  = false;
+        $this->isAbstract  = false;
     }
 
     public function method($methodName, Dispatcher $dispatcher)

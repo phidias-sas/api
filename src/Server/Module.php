@@ -42,14 +42,14 @@ class Module
     {
         /* Step 1: Include all configuration */
         foreach ($modules as $path) {
-            foreach (self::readAllFolder($path."/".self::DIR_CONFIGURATION) as $file) {
+            foreach (self::getPhpFiles($path."/".self::DIR_CONFIGURATION) as $file) {
                 Configuration::set(include $file);
             }
         }
 
         /* Step 2: Run all modules initialization */
         foreach ($modules as $path) {
-            foreach (self::readAllFolder($path."/".self::DIR_INITIALIZATION) as $file) {
+            foreach (self::getPhpFiles($path."/".self::DIR_INITIALIZATION) as $file) {
                 include $file;
             }
         }
@@ -60,17 +60,16 @@ class Module
         }
     }
 
-
     private static function runInitialization($server, $path)
     {
-        foreach (self::readAllFolder($path.self::DIR_INITIALIZATION) as $file) {
+        foreach (self::getPhpFiles($path.self::DIR_INITIALIZATION) as $file) {
             include $file;
         }
     }
 
     private static function loadConfiguration($server, $path)
     {
-        foreach (self::readAllFolder($path.self::DIR_CONFIGURATION) as $file) {
+        foreach (self::getPhpFiles($path.self::DIR_CONFIGURATION) as $file) {
             Configuration::set(include $file);
         }
 
@@ -78,13 +77,12 @@ class Module
 
     private static function loadResources($server, $path)
     {
-        foreach (self::readAllFolder($path.self::DIR_RESOURCES) as $file) {
+        foreach (self::getPhpFiles($path.self::DIR_RESOURCES) as $file) {
             $server->resource(include $file);
         }
     }
 
-
-    private static function readAllFolder($folder, $subfoldersFirst = true, $rootFolder = null)
+    private static function getPhpFiles($folder, $subfoldersFirst = true, $rootFolder = null)
     {
         $files   = [];
         $folders = [];
@@ -103,7 +101,10 @@ class Module
             $item = $folder === null ? $basename : "$folder/$basename";
 
             if (is_file("$rootFolder/$item")) {
-                $files[] = "$rootFolder/$item";
+
+                if (substr($item,-4) == ".php") {
+                    $files[] = "$rootFolder/$item";
+                }
             } else {
                 $folders[] = $item;
             }
@@ -113,13 +114,13 @@ class Module
 
         if ($subfoldersFirst) {
             foreach ($folders as $subdir) {
-                $retval = array_merge($retval, self::readAllFolder($subdir, $subfoldersFirst, $rootFolder));
+                $retval = array_merge($retval, self::getPhpFiles($subdir, $subfoldersFirst, $rootFolder));
             }
             $retval = array_merge($retval, $files);
         } else {
             $retval = $files;
             foreach ($folders as $subdir) {
-                $retval = array_merge($retval, self::readAllFolder($subdir, $subfoldersFirst, $rootFolder));
+                $retval = array_merge($retval, self::getPhpFiles($subdir, $subfoldersFirst, $rootFolder));
             }
         }
 

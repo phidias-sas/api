@@ -92,6 +92,12 @@ class Dispatcher implements DispatcherInterface
             }
         }
 
+        if (isset($array["catch"])) {
+            foreach ($array["catch"] as $exceptionClass => $callback) {
+                $dispatcher->handle($exceptionClass, $callback);
+            }
+        }
+
         if (isset($array["access-control"])) {
             $dispatcher->accessControl($array["access-control"]);
         }

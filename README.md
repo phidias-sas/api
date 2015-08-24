@@ -1,6 +1,6 @@
 # Phidias API
 ##### Available via composer
-`composer require phidias\api`
+`composer require phidias/api`
 
 #### Overview
 
@@ -21,7 +21,7 @@ Server::run();
 ```
 
 
-##### Keep your applicaiton logic separate
+##### Keep your application logic separate
 
 ```
 class Book

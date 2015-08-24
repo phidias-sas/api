@@ -126,30 +126,51 @@ class Dispatcher implements DispatcherInterface
             $this->runFilters();
             $this->setAccessControl();
 
-            $this->render();
-
         } catch (\Exception $exception) {
 
             // See what the handler can do, and
             // catch default exceptions when it doesn't
 
             try {
+
                 $this->handleException($exception);
 
             } catch (Exception\AuthenticationException $exception) {
+
                 $this->response->status(401); //Unauthorized
 
             } catch (Exception\AuthorizationException $exception) {
+
                 $this->response->status(403); //Forbidden
 
             } catch (Exception\ValidationException $exception) {
-                $this->response->status(422); //UnprocessableEntity
 
-            } catch (Exception\RenderException $exception) {
-                $this->response->status(406); //Not Acceptable
+                $this->response->status(422); //UnprocessableEntity
+                $this->data = $exception->getErrors();
+
             }
 
         }
+
+
+        // After a response is obtained from either normal execution or an exception,
+        // attempt to render
+
+        try {
+
+            $this->render();
+
+        } catch (Exception\RenderException $exception) {
+
+            $this->response->status(406); //Not Acceptable
+
+        } catch (\Exception $exception) {
+
+            $this->handleException($exception);
+
+        }
+
+
 
         return $this->response;
     }

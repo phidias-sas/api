@@ -16,6 +16,8 @@ class Module
     const DIR_TEMPLATES      = 'templates';
     const DIR_TEMPORARY      = 'temporary';
 
+    private static $loadedModules = [];
+
     public static function load(Instance $server, $moduleFolder)
     {
         $path = realpath($moduleFolder);
@@ -35,21 +37,28 @@ class Module
             self::runInitialization($server, $path);
         });
 
+        self::$loadedModules[] = $path;
+
         Debugger::endBlock("Loading module '$path'");
+    }
+
+    public static function getLoadedModules()
+    {
+        return self::$loadedModules;
     }
 
     public static function install($modules)
     {
         /* Step 1: Include all configuration */
         foreach ($modules as $path) {
-            foreach (self::getPhpFiles($path."/".self::DIR_CONFIGURATION) as $file) {
+            foreach (self::getFileList($path."/".self::DIR_CONFIGURATION) as $file) {
                 Configuration::set(include $file);
             }
         }
 
         /* Step 2: Run all modules initialization */
         foreach ($modules as $path) {
-            foreach (self::getPhpFiles($path."/".self::DIR_INITIALIZATION) as $file) {
+            foreach (self::getFileList($path."/".self::DIR_INITIALIZATION) as $file) {
                 include $file;
             }
         }
@@ -60,16 +69,45 @@ class Module
         }
     }
 
+    /**
+     * List files found in every module's $folder.
+     * Newest files (i.e. declared in the LATEST included module) are returned FIRST
+     */
+    public static function listFiles($folder)
+    {
+        $allFiles = [];
+        foreach (array_reverse(self::$loadedModules) as $path) {
+            $allFiles = array_merge($allFiles, self::getFileList("$path/$folder"));
+        }
+
+        return $allFiles;
+    }
+
+    /**
+     * Look for the given file in all modules.
+     * Returns an array of all matching files, ordered showing newest modules first
+     * 
+     */
+    public static function getFile($filename)
+    {
+        $allFiles = [];
+        foreach (array_reverse(self::$loadedModules) as $path) {
+            $allFiles = array_merge($allFiles, self::getFileList($path, $filename));
+        }
+
+        return $allFiles;
+    }
+
     private static function runInitialization($server, $path)
     {
-        foreach (self::getPhpFiles($path.self::DIR_INITIALIZATION) as $file) {
+        foreach (self::getFileList($path.self::DIR_INITIALIZATION) as $file) {
             include $file;
         }
     }
 
     private static function loadConfiguration($server, $path)
     {
-        foreach (self::getPhpFiles($path.self::DIR_CONFIGURATION) as $file) {
+        foreach (self::getFileList($path.self::DIR_CONFIGURATION) as $file) {
             Configuration::set(include $file);
         }
 
@@ -77,12 +115,12 @@ class Module
 
     private static function loadResources($server, $path)
     {
-        foreach (self::getPhpFiles($path.self::DIR_RESOURCES) as $file) {
+        foreach (self::getFileList($path.self::DIR_RESOURCES) as $file) {
             $server->resource(include $file);
         }
     }
 
-    private static function getPhpFiles($folder, $subfoldersFirst = true, $rootFolder = null)
+    private static function getFileList($folder, $pattern = "*.php", $subfoldersFirst = true, $rootFolder = null)
     {
         $files   = [];
         $folders = [];
@@ -101,8 +139,7 @@ class Module
             $item = $folder === null ? $basename : "$folder/$basename";
 
             if (is_file("$rootFolder/$item")) {
-
-                if (substr($item,-4) == ".php") {
+                if (self::matchesPattern($item, $pattern)) {
                     $files[] = "$rootFolder/$item";
                 }
             } else {
@@ -114,17 +151,30 @@ class Module
 
         if ($subfoldersFirst) {
             foreach ($folders as $subdir) {
-                $retval = array_merge($retval, self::getPhpFiles($subdir, $subfoldersFirst, $rootFolder));
+                $retval = array_merge($retval, self::getFileList($subdir, $pattern, $subfoldersFirst, $rootFolder));
             }
             $retval = array_merge($retval, $files);
         } else {
             $retval = $files;
             foreach ($folders as $subdir) {
-                $retval = array_merge($retval, self::getPhpFiles($subdir, $subfoldersFirst, $rootFolder));
+                $retval = array_merge($retval, self::getFileList($subdir, $pattern, $subfoldersFirst, $rootFolder));
             }
         }
 
         return $retval;
+    }
+
+    private static function matchesPattern($string, $pattern)
+    {
+        if ($pattern === null || $pattern === "*") {
+            return true;
+        }
+
+        if ($pattern == "*.php" && substr($string, -4) == ".php") {
+            return true;
+        }
+
+        return substr($string, strlen($pattern)*-1) == $pattern;
     }
 
     /**

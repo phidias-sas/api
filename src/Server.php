@@ -17,7 +17,7 @@ class Server
         return self::$instance;
     }
 
-    public static function resource($path, Resource $resource = null)
+    public static function resource($path, $resource = null)
     {
         return self::getInstance()->resource($path, $resource);
     }

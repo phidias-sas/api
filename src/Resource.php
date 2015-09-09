@@ -1,6 +1,7 @@
 <?php 
 namespace Phidias\Api;
 
+use Phidias\Api\Resource\Exception\MethodNotImplemented;
 use Phidias\Api\Resource\Method;
 
 class Resource
@@ -61,7 +62,7 @@ class Resource
      * Return the dispatcher in charge of executing the given method
      * 
      * @return Dispatcher
-     * @throws Exception\MethodNotImplemented
+     * @throws MethodNotImplemented
      * 
      */
     public function getDispatcher($methodName)
@@ -74,7 +75,7 @@ class Resource
                 return $this->dispatchers["any"];
             }
 
-            throw new Exception\MethodNotImplemented($methodName, $this->getImplementedMethods);
+            throw new MethodNotImplemented($methodName, $this->getImplementedMethods());
         }
 
         $genericDispatcher = isset($this->dispatchers["any"]) ? $this->dispatchers["any"] : null;

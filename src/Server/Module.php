@@ -64,8 +64,18 @@ class Module
         }
 
         /* Step 3: Run installation scripts */
+        $installers = [];
+
         foreach ($modules as $path) {
-            (new Installer($path))->install();
+            $installer = new Installer($path);
+            $installer->install();
+
+            $installers[] = $installer;
+        }
+
+        /* Step 4: run all modules postInstallation */
+        foreach ($installers as $installer) {
+            $installer->finalize();
         }
     }
 

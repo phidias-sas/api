@@ -10,10 +10,21 @@ use Phidias\Db\Orm\Entity\Reflection as EntityReflection;
 class Installer
 {
     private $path;
+    private $postInstallationCallbacks;
 
     public function __construct($path)
     {
-        $this->path = $path;
+        $this->path                      = $path;
+        $this->postInstallationCallbacks = [];
+    }
+
+    public function afterInstall($callback)
+    {
+        if (!is_callable($callback)) {
+            trigger_error("invalid callback", E_USER_ERROR);
+        }
+
+        $this->postInstallationCallbacks[] = $callback;
     }
 
     public function install()
@@ -23,6 +34,13 @@ class Installer
         }
 
         include $installationFile;
+    }
+
+    public function finalize()
+    {
+        foreach ($this->postInstallationCallbacks as $callback) {
+            call_user_func($callback);
+        }
     }
 
     public function createDatabase($identifier = null)

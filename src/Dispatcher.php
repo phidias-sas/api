@@ -225,7 +225,7 @@ class Dispatcher implements DispatcherInterface
     {
         Debugger::startBlock("rendering response data");
 
-        $template = $this->findSuitableTemplate($this->getAcceptedMediaTypes($this->request), $this->data);
+        list($template, $mediaType) = $this->findSuitableTemplate($this->getAcceptedMediaTypes($this->request), $this->data);
 
         //!!! no template found.
         if ($template === null) {
@@ -236,7 +236,7 @@ class Dispatcher implements DispatcherInterface
             $body->write(json_encode($this->data, JSON_PRETTY_PRINT));
 
             $this->response
-                ->header("Content-Type", "application/json")
+                ->header("Content-Type", "application/json; charset=utf-8")
                 ->body($body);
 
             Debugger::endBlock();
@@ -255,6 +255,7 @@ class Dispatcher implements DispatcherInterface
         $body->write($engine->render($template));
 
         $this->response->body($body);
+        $this->response->header("Content-Type", $mediaType."; charset=utf-8");
 
         Debugger::endBlock();
     }
@@ -262,7 +263,7 @@ class Dispatcher implements DispatcherInterface
     private function getAcceptedMediaTypes($request)
     {
         if (!$request->hasHeader("Accept")) {
-            return [];
+            return ["application/json"];
         }
 
         foreach ($request->getHeader("Accept") as $fullMediaType) {
@@ -275,6 +276,9 @@ class Dispatcher implements DispatcherInterface
                 $acceptedMediaTypes[] = $parts[0];
             }
         }
+
+        /* assume application/json is always accepted (as a fallback) */
+        $acceptedMediaTypes[] = "application/json";
 
         return $acceptedMediaTypes;
     }
@@ -316,13 +320,13 @@ class Dispatcher implements DispatcherInterface
             foreach ($dataTypes as $dataType) {
 
                 if (isset($this->templates[$mediaType][$dataType])) {
-                    return $this->templates[$mediaType][$dataType];
+                    return [$this->templates[$mediaType][$dataType], $mediaType];
                 }
 
             }
         }
 
-        return null;
+        return [null, null];
     }
 
     private function runFilters()

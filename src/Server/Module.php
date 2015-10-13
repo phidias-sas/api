@@ -54,7 +54,6 @@ class Module
         /* Step 1: Include all configuration */
         foreach ($modules as $path) {
             foreach (self::getFileList($path."/".self::DIR_CONFIGURATION) as $file) {
-                print_r($file);
                 Configuration::set(include $file);
             }
         }
@@ -62,7 +61,6 @@ class Module
         /* Step 2: Run all modules initialization */
         foreach ($modules as $path) {
             foreach (self::getFileList($path."/".self::DIR_INITIALIZATION) as $file) {
-                print_r($file);
                 include $file;
             }
         }

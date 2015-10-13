@@ -8,9 +8,15 @@ class Instance
 {
     private static $modules = [];
 
-    public function import($path)
+    public function import($moduleFolder)
     {
-        self::$modules[] = realpath($path);
+        $path = realpath($moduleFolder);
+
+        if (!$path) {
+            trigger_error("cannot load: '$moduleFolder' is not a valid folder", E_USER_ERROR);
+        }
+
+        self::$modules[] = "/".trim($path, "/")."/";
     }
 
     public function execute()

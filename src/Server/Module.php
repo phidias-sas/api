@@ -18,28 +18,30 @@ class Module
 
     private static $loadedModules = [];
 
-    public static function load(Instance $server, $moduleFolder)
+    public static function load($moduleFolder)
     {
         $path = realpath($moduleFolder);
 
-        if (! $path) {
+        if (!$path) {
             trigger_error("cannot load: '$moduleFolder' is not a valid folder", E_USER_ERROR);
         }
 
-        Debugger::startBlock("Loading module '$path'");
+        self::$loadedModules[] = "/".trim($path, "/")."/";
+    }
 
-        $path = $path."/";
+    public static function initialize(Instance $server)
+    {
+        foreach (self::$loadedModules as $path) {
+            self::loadConfiguration($server, $path);
+        }
 
-        self::loadConfiguration($server, $path);
-        self::loadResources($server, $path);
-
-        $server->onInitialize(function() use ($server, $path) {
+        foreach (self::$loadedModules as $path) {
             self::runInitialization($server, $path);
-        });
+        }
 
-        self::$loadedModules[] = $path;
-
-        Debugger::endBlock("Loading module '$path'");
+        foreach (self::$loadedModules as $path) {
+            self::loadResources($server, $path);
+        }        
     }
 
     public static function getLoadedModules()
@@ -51,14 +53,14 @@ class Module
     {
         /* Step 1: Include all configuration */
         foreach ($modules as $path) {
-            foreach (self::getFileList($path."/".self::DIR_CONFIGURATION) as $file) {
+            foreach (self::getFileList($path.self::DIR_CONFIGURATION) as $file) {
                 Configuration::set(include $file);
             }
         }
 
         /* Step 2: Run all modules initialization */
         foreach ($modules as $path) {
-            foreach (self::getFileList($path."/".self::DIR_INITIALIZATION) as $file) {
+            foreach (self::getFileList($path.self::DIR_INITIALIZATION) as $file) {
                 include $file;
             }
         }

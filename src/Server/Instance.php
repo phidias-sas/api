@@ -44,11 +44,15 @@ class Instance
             return $this;
         }
 
-        $this->isInitialized = true;
+        Module::initialize($this);
 
         foreach ($this->initializationCallbacks as $callback) {
             $callback();
         }
+
+        $this->isInitialized = true;
+
+        return $this;
     }
 
     /* Error events */
@@ -178,7 +182,7 @@ class Instance
      */
     public function import($path)
     {
-        Module::load($this, $path);
+        Module::load($path);
         return $this;
     }
 

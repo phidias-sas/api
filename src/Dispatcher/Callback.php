@@ -43,6 +43,10 @@ class Callback
         $stdOut = ob_get_contents(); //Keep in mind: If errors were triggerd via trigger_error during controller executions, they will be in $stdOut
         ob_end_clean();
 
+        if (!strlen($stdOut)) {
+            $stdOut = null;
+        }
+
         return $output === null ? $stdOut : $output;
     }
 

@@ -154,7 +154,7 @@ class Instance
         } catch (\Exception $e) {
 
             $body = new Stream("php://temp", "w");
-            $body->write("<pre>" . print_r($e, true));
+            $body->write($e->getMessage());
 
             $response = (new Response())
                 ->status(500, get_class($e))

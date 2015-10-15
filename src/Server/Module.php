@@ -26,21 +26,19 @@ class Module
             trigger_error("cannot load: '$moduleFolder' is not a valid folder", E_USER_ERROR);
         }
 
+        self::loadConfiguration($path);
+
         self::$loadedModules[] = "/".trim($path, "/");
     }
 
     public static function initialize(Instance $server)
     {
         foreach (self::$loadedModules as $path) {
-            self::loadConfiguration($server, $path);
+            self::runInitialization($path);
         }
 
         foreach (self::$loadedModules as $path) {
-            self::runInitialization($server, $path);
-        }
-
-        foreach (self::$loadedModules as $path) {
-            self::loadResources($server, $path);
+            self::loadResources($path, $server);
         }        
     }
 
@@ -110,14 +108,14 @@ class Module
         return $allFiles;
     }
 
-    private static function runInitialization($server, $path)
+    private static function runInitialization($path)
     {
         foreach (self::getFileList($path."/".self::DIR_INITIALIZATION) as $file) {
             include $file;
         }
     }
 
-    private static function loadConfiguration($server, $path)
+    private static function loadConfiguration($path)
     {
         foreach (self::getFileList($path."/".self::DIR_CONFIGURATION) as $file) {
             Configuration::set(include $file);
@@ -125,7 +123,7 @@ class Module
 
     }
 
-    private static function loadResources($server, $path)
+    private static function loadResources($path, $server)
     {
         foreach (self::getFileList($path."/".self::DIR_RESOURCES) as $file) {
             $server->resource(include $file);

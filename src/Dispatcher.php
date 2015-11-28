@@ -7,7 +7,6 @@ use Phidias\Api\Dispatcher\Callback;
 use Phidias\Api\Dispatcher\DispatcherInterface;
 use Phidias\Api\Dispatcher\AccessControl;
 
-
 use Phidias\Utilities\Debugger;
 
 class Dispatcher implements DispatcherInterface
@@ -40,6 +39,91 @@ class Dispatcher implements DispatcherInterface
 
         $this->templateEngineClass = "Phidias\Api\Dispatcher\TemplateEngine";
     }
+
+
+    /**
+     * Perform voodoo to obtain a Response for the given ServerRequest
+     *
+     * @return Http\Response
+     */
+    public function dispatch(\Psr\Http\Message\ServerRequestInterface $request)
+    {
+        $this->request  = $request;
+        $this->response = new Http\Response();
+
+        try {
+            $this->authenticate();
+        } catch (\Exception $exception) {
+            return $this->handleException($exception, 401); // Unauthorized
+        }
+
+        try {
+            $this->authorize();
+        } catch (\Exception $exception) {
+            return $this->handleException($exception, 403); // Forbidden
+        }
+
+        try {
+            $this->validate();
+        } catch (\Exception $exception) {
+            return $this->handleException($exception, 422); // Unprocessable Entity
+        }
+
+        try {
+            $this->execute();
+            $this->runFilters();
+        } catch (\Exception $exception) {
+            return $this->handleException($exception);
+        }
+
+        return $this->finalize();
+    }
+
+
+    private function handleException($exception, $code = 500)
+    {
+        $this->response->status($code, $exception->getMessage());
+        $this->response->header("X-Phidias-Exception", get_class($exception));
+
+        $this->data = $exception;
+
+        // Execute all matching "catch" from resource definition
+        foreach ($this->exceptions as $exceptionHandler) {
+            list($exceptionClass, $callback) = $exceptionHandler->value;
+            if (is_a($exception, $exceptionClass)) {
+                $this->executeCallback($callback, array_merge($exceptionHandler->arguments, [
+                    "exception" => $exception
+                ]));
+            }
+        }
+
+        return $this->finalize();
+    }
+
+
+    private function finalize()
+    {
+        try {
+
+            $this->render();
+
+        } catch (Exception\RenderException $exception) {
+
+            $this->response->status(406, $exception->getMessage()); //Not Acceptable
+            $this->response->header("X-Phidias-Exception", get_class($exception));
+
+        } catch (\Exception $exception) {
+
+            $this->response->status(500, $exception->getMessage());
+            $this->response->header("X-Phidias-Exception", get_class($exception));
+
+        }
+
+        $this->setAccessControl();
+
+        return $this->response;
+    }
+
 
 
     public static function factory($array)
@@ -106,74 +190,6 @@ class Dispatcher implements DispatcherInterface
     }
 
 
-    /**
-     * Perform voodoo to obtain a Response for the given ServerRequest
-     *
-     * @return Http\Response
-     */
-    public function dispatch(\Psr\Http\Message\ServerRequestInterface $request)
-    {
-        $this->request  = $request;
-        $this->response = new Http\Response();
-
-        try {
-
-            $this->authenticate();
-            $this->authorize();
-            $this->validate();
-
-            $this->execute();
-            $this->runFilters();
-            $this->setAccessControl();
-
-        } catch (\Exception $exception) {
-
-            // See what the handler can do, and
-            // catch default exceptions when it doesn't
-
-            try {
-
-                $this->handleException($exception);
-
-            } catch (Exception\AuthenticationException $exception) {
-
-                $this->response->status(401); //Unauthorized
-
-            } catch (Exception\AuthorizationException $exception) {
-
-                $this->response->status(403); //Forbidden
-
-            } catch (Exception\ValidationException $exception) {
-
-                $this->response->status(422); //UnprocessableEntity
-                $this->data = $exception->getErrors();
-
-            }
-
-        }
-
-
-        // After a response is obtained from either normal execution or an exception,
-        // attempt to render
-
-        try {
-
-            $this->render();
-
-        } catch (Exception\RenderException $exception) {
-
-            $this->response->status(406); //Not Acceptable
-
-        } catch (\Exception $exception) {
-
-            $this->handleException($exception);
-
-        }
-
-
-
-        return $this->response;
-    }
 
 
     private function authenticate()
@@ -347,22 +363,6 @@ class Dispatcher implements DispatcherInterface
         foreach ($this->accessControl as $ruleProperty) {
             AccessControl::factory($ruleProperty->value)->filter($this->response, $this->request);
         }
-    }
-
-    private function handleException($exception)
-    {
-        foreach ($this->exceptions as $exceptionHandler) {
-
-            list($exceptionClass, $callback) = $exceptionHandler->value;
-
-            if (is_a($exception, $exceptionClass)) {
-                return $this->executeCallback($callback, array_merge($exceptionHandler->arguments, [
-                    "exception" => $exception
-                ]));
-            }
-        }
-
-        throw $exception;
     }
 
 

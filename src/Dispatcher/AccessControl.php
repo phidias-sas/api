@@ -77,7 +77,7 @@ class AccessControl
             ->allowCredentials(true)
             ->allowHeaders(["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"])
             ->allowMethods(["GET", "POST", "PUT", "DELETE", "OPTIONS"])
-            ->exposeHeaders(["Location", "X-Phidias-Collection-Page", "X-Phidias-Collection-Page-Size", "X-Phidias-Collection-Total"]);
+            ->exposeHeaders(["Location", "X-Phidias-Collection-Page", "X-Phidias-Collection-Page-Size", "X-Phidias-Collection-Total" , "X-Phidias-Exception"]);
     }
 
     public function filter($response, $request)

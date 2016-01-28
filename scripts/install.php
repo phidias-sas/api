@@ -1,14 +1,13 @@
 <?php
-namespace Phidias\Api\Server;
+namespace Phidias\Api;
 
-use Phidias\Db\Db;
-use Phidias\Db\Orm\Entity\Reflection as EntityReflection;
+use Phidias\Api\Server\Module;
 
-class Instance
+class Server
 {
     private static $modules = [];
 
-    public function import($moduleFolder)
+    public static function import($moduleFolder)
     {
         $path = realpath($moduleFolder);
 
@@ -19,14 +18,14 @@ class Instance
         self::$modules[] = "/".trim($path, "/")."/";
     }
 
-    public function execute()
+    public static function execute()
     {
-        $this->install();
+        self::install();
     }
 
-    public function run()
+    public static function run()
     {
-        $this->install();
+        self::install();
     }
 
     private function install()
@@ -34,23 +33,23 @@ class Instance
         Module::install(self::$modules);
     }
 
-    public function onInitialize()
+    public static function onInitialize()
     {
     }
 
-    public function onNotFound()
+    public static function onNotFound()
     {
     }
 
-    public function onMethodNotImplemented()
+    public static function onMethodNotImplemented()
     {
     }
 
-    public function resource()
+    public static function resource()
     {
     }
 
-    public function find()
+    public static function find()
     {
     }
 

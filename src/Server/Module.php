@@ -3,7 +3,7 @@ namespace Phidias\Api\Server;
 
 use Phidias\Utilities\Configuration;
 use Phidias\Utilities\Debugger;
-
+use Phidias\Api\Server;
 use Phidias\Api\Server\Module\Installer;
 
 class Module
@@ -31,14 +31,14 @@ class Module
         self::$loadedModules[] = "/".trim($path, "/");
     }
 
-    public static function initialize(Instance $server)
+    public static function initialize()
     {
         foreach (self::$loadedModules as $path) {
             self::runInitialization($path);
         }
 
         foreach (self::$loadedModules as $path) {
-            self::loadResources($path, $server);
+            self::loadResources($path);
         }        
     }
 
@@ -123,10 +123,10 @@ class Module
 
     }
 
-    private static function loadResources($path, $server)
+    private static function loadResources($path)
     {
         foreach (self::getFileList($path."/".self::DIR_RESOURCES) as $file) {
-            $server->resource(include $file);
+            Server::resource(include $file);
         }
     }
 

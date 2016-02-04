@@ -28,7 +28,7 @@ class Server
         self::install();
     }
 
-    private function install()
+    private static function install()
     {
         Module::install(self::$modules);
     }

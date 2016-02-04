@@ -70,11 +70,6 @@ class Resource
         $methodName = strtolower($methodName);
 
         if (!isset($this->dispatchers[$methodName])) {
-
-            if (isset($this->dispatchers["any"])) {
-                return $this->dispatchers["any"];
-            }
-
             throw new MethodNotImplemented($methodName, $this->getImplementedMethods());
         }
 
@@ -101,7 +96,16 @@ class Resource
 
     public function getImplementedMethods()
     {
-        return array_map("strtoupper", array_keys($this->dispatchers));
+        $retval = [];
+
+        foreach (array_keys($this->dispatchers) as $method) {
+            $method = strtoupper($method);
+            if ($method != "ANY") {
+                $retval[] = $method;
+            }
+        }
+
+        return $retval;
     }
 
     public function merge($resource)

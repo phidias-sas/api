@@ -11,40 +11,16 @@ use Phidias\Api\Http\Stream;
 
 class Server
 {
-    private static $router;
-    private static $isInitialized           = false;
-    private static $initializationCallbacks = [];
-
-    private static $onNotFound;
-    private static $onMethodNotImplemented;
-
-    public static function onInitialize($callback)
-    {
-        if (!is_callable($callback)) {
-            trigger_error("Server::onInitialize: callback is not valid", E_USER_ERROR);
-        }
-
-        self::$initializationCallbacks[] = $callback;
-    }
-
-    /* Error events */
-    public static function onNotFound(Dispatcher $dispatcher)
-    {
-        self::$onNotFound = $dispatcher;
-    }
-
-    public static function onMethodNotImplemented(Dispatcher $dispatcher)
-    {
-        self::$onMethodNotImplemented = $dispatcher;
-    }
+    private static $index;
+    private static $isInitialized;
 
     /**
      * Declare a resource
-     * 
+     *
      * Server::resource("/myresource", <Resource>);
-     * 
+     *
      * or
-     * 
+     *
      * Server::resource([
      *    "/myresourceone"   => <Resource>
      *    "/myresourcetwo"   => <Resource>
@@ -60,16 +36,57 @@ class Server
             return;
         }
 
-        if (is_array($resource)) {
-            $resource = Resource::factory($resource);
-        }
+        $resource = Resource::factory($resource);
 
-        if (self::$router === null) {
-            self::$router = new Router;
-        }
+        self::getIndex()->store($path, $resource);
 
-        self::$router->store($path, $resource);
+        return $resource;
     }
+
+    /**
+     * Construct an Action
+     *
+     * Server::resource("/hello")
+     *     ->on("get", Server::action()
+     *         ->controller("myController")
+     *     );
+     *
+     */
+    public static function action($actionData = null)
+    {
+        return Action::factory($actionData);
+    }
+
+    /**
+     */
+    public static function access($cors = null)
+    {
+        return AccessControl::factory($cors);
+    }
+
+
+    /**
+     * Obtain the current request from the environment, execute it and relay the response
+     *
+     */
+    public static function run()
+    {
+        $request  = Environment::getServerRequest();
+        $response = self::execute($request);
+        Environment::sendResponse($response);
+    }
+
+
+
+    private static function getIndex()
+    {
+        if (self::$index === null) {
+            self::$index = new Index;
+        }
+
+        return self::$index;
+    }
+
 
     /**
      * Import resources and templates from the given
@@ -79,6 +96,8 @@ class Server
     {
         Module::load($path);
     }
+
+
 
     /**
      * Execute a server request.
@@ -90,58 +109,96 @@ class Server
     {
         self::initialize();
 
+        $method = strtoupper($request->getMethod());
+        $path   = urldecode($request->getUri()->getPath());
+
+        Debug::startBlock("$method $path", "resource");
+
         try {
 
-            $method = strtoupper($request->getMethod());
-            $path   = urldecode($request->getUri()->getPath());
-
-            Debug::startBlock("$method $path", "resource");
-
-            $resource = self::find($path);
-            $response = $resource->dispatch($request);
-
-            Debug::endBlock();
+            $dispatcher = self::getDispatcher($request);
+            $response   = $dispatcher->dispatch($request);
 
         } catch (Server\Exception\ResourceNotFound $e) {
 
-            if (self::$onNotFound == null) {
-                $response = new Response(404);
-            } else {
-                $response = self::$onNotFound->dispatch($request);
-            }
+            $response = new Response(404);
 
-        } catch (Resource\Exception\MethodNotImplemented $e) {
+        } catch (Server\Exception\MethodNotImplemented $e) {
 
-            if (self::$onMethodNotImplemented == null) {
-                $response = (new Response(405))->withHeader("Allowed", $e->getImplementedMethods());
-            } else {
-                $response = self::$onMethodNotImplemented->dispatch($request);
-            }
-
-        } catch (\Exception $e) {
-
-            $body = new Stream("php://temp", "w");
-            $body->write($e->getMessage());
-
-            $response = (new Response())
-                ->status(500, get_class($e))
-                ->body($body);
+            $response = (new Response(405))->withHeader("Allowed", $e->getImplementedMethods());
 
         }
+
+        Debug::endBlock();
 
         return $response;
     }
 
 
     /**
-     * Obtain the current request from the environment, execute it and relay the response
+     * Look in the index for all actions matching the request
+     * and create a new dispatcher from them.
      */
-    public static function run()
+    private static function getDispatcher($request)
     {
-        Environment::sendResponse(
-            self::execute(Environment::getServerRequest())
-        );
+        $dispatcher = new Dispatcher;
+
+        $method  = $request->getMethod();
+        $url     = urldecode($request->getUri()->getPath());
+
+        $results = self::getIndex()->find($url);
+
+        if (!$results) {
+            throw new Server\Exception\ResourceNotFound;
+        }
+
+        // Abstract resources should only be included alongside NON abstract resources
+        $nonAbstractMethodsArePresent = false;
+
+        foreach ($results as $result) {
+            if (!$result->data->getIsAbstract()) {
+                $nonAbstractMethodsArePresent = true;
+                break;
+            }
+        }
+
+        if (!$nonAbstractMethodsArePresent) {
+            throw new Server\Exception\ResourceNotFound;
+        }
+
+
+        $foundMethod        = false;
+        $implementedMethods = [];
+
+        foreach ($results as $result) {
+
+            $resource           = $result->data;
+            $attributes         = $result->attributes;
+            $implementedMethods = array_merge($implementedMethods, $resource->getImplementedMethods());
+
+
+            foreach ($resource->getActions($method) as $methodAction) {
+
+                $action = Action::factory($methodAction);
+
+                if (count($action->getControllers())) {
+                    $foundMethod = true;
+                }
+
+                $dispatcher->add($action, $attributes);
+            }
+
+        }
+
+
+        if (!$foundMethod) {
+            throw new Server\Exception\MethodNotImplemented($implementedMethods);
+        }
+
+        return $dispatcher;
     }
+
+
 
 
     private static function initialize()
@@ -152,44 +209,7 @@ class Server
 
         Module::initialize();
 
-        foreach (self::$initializationCallbacks as $callback) {
-            $callback();
-        }
-
         self::$isInitialized = true;
-    }
-
-    private static function find($url)
-    {
-        if (self::$router === null) {
-            throw new Server\Exception\ResourceNotFound;
-        }
-
-        $results = self::$router->find($url);
-
-        if (!$results) {
-            throw new Server\Exception\ResourceNotFound;
-        }
-
-        $retval = null;
-
-        for ($i = count($results)-1; $i >= 0; $i--) {
-
-            $resource = $results[$i]["data"]->arguments($results[$i]["arguments"]);
-
-            if ($retval == null) {
-                $retval = $resource;
-            } else {
-                $retval->merge($resource);
-            }
-
-        }
-
-        if ($retval->getIsAbstract()) {
-            throw new Server\Exception\ResourceNotFound;
-        }
-
-        return $retval;
     }
 
 }

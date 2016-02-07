@@ -1,26 +1,39 @@
-<?php 
+<?php
 namespace Phidias\Api;
-
-use Phidias\Api\Resource\Exception\MethodNotImplemented;
-use Phidias\Api\Resource\Method;
 
 class Resource
 {
-    private $arguments;
-    private $dispatchers;
     private $isAbstract;
+    private $methodActions;
 
-    public static function factory($arrayResourceData)
+    public static function factory($resourceData)
+    {
+        if (!$resourceData) {
+            return new Resource;
+        }
+
+        if (is_a($resourceData, "Phidias\Api\Resource")) {
+            return $resourceData;
+        }
+
+        if (is_array($resourceData)) {
+            return self::fromArray($resourceData);
+        }
+
+        trigger_error("could not create resource", E_USER_ERROR);
+    }
+
+    private static function fromArray($array)
     {
         $resource = new Resource;
 
-        if (isset($arrayResourceData["abstract"]) && $arrayResourceData["abstract"]) {
+        if (isset($array["abstract"]) && $array["abstract"]) {
             $resource->isAbstract();
         }
 
-        foreach ($arrayResourceData as $key => $arrayDispatcherData) {
+        foreach ($array as $key => $actionData) {
             if (in_array(strtolower($key), ["get", "post", "put", "delete", "any"])) {
-                $resource->method(strtolower($key), Dispatcher::factory($arrayDispatcherData));
+                $resource->on(strtolower($key), $actionData);
             }
         }
 
@@ -29,15 +42,13 @@ class Resource
 
     public function __construct($dispatchers = null)
     {
-        $this->arguments   = [];
-        $this->dispatchers = [];
-        $this->isAbstract  = false;
+        $this->methodActions = [];
+        $this->isAbstract    = false;
     }
 
-    public function method($methodName, Dispatcher $dispatcher)
+    public function on($methodName, $action)
     {
-        $methodName = strtolower($methodName);
-        $this->dispatchers[$methodName] = isset($this->dispatchers[$methodName]) ? $this->dispatchers[$methodName]->merge($dispatcher) : $dispatcher;
+        $this->methodActions[strtolower($methodName)][] = $action;
 
         return $this;
     }
@@ -53,52 +64,15 @@ class Resource
         return $this->isAbstract;
     }
 
-    public function dispatch(Http\ServerRequest $request)
-    {
-        return $this->getDispatcher($request->getMethod())->dispatch($request);
-    }
-
-    /**
-     * Return the dispatcher in charge of executing the given method
-     * 
-     * @return Dispatcher
-     * @throws MethodNotImplemented
-     * 
-     */
-    public function getDispatcher($methodName)
-    {
-        $methodName = strtolower($methodName);
-
-        if (!isset($this->dispatchers[$methodName])) {
-            throw new MethodNotImplemented($methodName, $this->getImplementedMethods());
-        }
-
-        $genericDispatcher = isset($this->dispatchers["any"]) ? $this->dispatchers["any"] : null;
-
-        return $genericDispatcher === null ? $this->dispatchers[$methodName] : $genericDispatcher->merge($this->dispatchers[$methodName]);
-    }
-
-
-    public function arguments(array $arguments)
-    {
-        $this->arguments = $arguments;
-        foreach ($this->dispatchers as $dispatcher) {
-            $dispatcher->setArguments($arguments);
-        }
-
-        return $this;
-    }
-
     public function hasMethod($methodName)
     {
-        return isset($this->dispatchers[trim(strtolower($methodName))]);
+        return isset($this->methodActions["any"]) || isset($this->methodActions[trim(strtolower($methodName))]);
     }
 
     public function getImplementedMethods()
     {
         $retval = [];
-
-        foreach (array_keys($this->dispatchers) as $method) {
+        foreach (array_keys($this->methodActions) as $method) {
             $method = strtoupper($method);
             if ($method != "ANY") {
                 $retval[] = $method;
@@ -108,19 +82,19 @@ class Resource
         return $retval;
     }
 
-    public function merge($resource)
+    public function getActions($methodName)
     {
-        if ($resource == null) {
-            return $this;
+        $retval = [];
+
+        if (isset($this->methodActions["any"])) {
+            $retval = array_merge($retval, $this->methodActions["any"]);
         }
 
-        $this->isAbstract = $this->isAbstract && $resource->isAbstract;
-
-        foreach ($resource->dispatchers as $methodName => $dispatcher) {
-            $this->method($methodName, $dispatcher);
+        if (isset($this->methodActions[$methodName])) {
+            $retval = array_merge($retval, $this->methodActions[$methodName]);
         }
 
-        return $this;
+        return $retval;
     }
 
 }

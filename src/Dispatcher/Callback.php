@@ -1,66 +1,165 @@
 <?php
 namespace Phidias\Api\Dispatcher;
 
+/*
+$myFunction = Callback::factory("myClass->myFunction({arg1}, null, 1, true, {arg2})");
+
+$result = $myFunction([
+    "arg1" => "some string",
+    "arg2" => ... an object! ....
+]);
+*/
+
 class Callback
 {
-    private $request;
-    private $response;
-    private $data;
+    private $callable;
+    private $expectedArguments;
 
-    public function __construct($request, $response, &$data)
+    public static function factory($data)
     {
-        $this->request  = $request;
-        $this->response = $response;
-        $this->data     = &$data;
+        if (is_a($data, "Phidias\Api\Dispatcher\Callback")) {
+            return $data;
+        }
+
+        return new Callback($data);
     }
 
-    public function execute($callable, $arguments = [])
+    public function __construct($callback)
     {
-        if (is_string($callable)) {
+        if (is_callable($callback)) {
 
-            $arguments["request"]       = $this->request->withAttributes($arguments);
-            $arguments["request.data"]  = $this->request->getParsedBody();
+            $this->callable          = $callback;
+            $this->expectedArguments = [];
 
-            $arguments["response"]      = $this->response;
-            $arguments["response.data"] = $this->data;
+            $reflection = new \ReflectionFunction($callback);
+            foreach ($reflection->getParameters() as $parameter) {
+                $this->expectedArguments[] = '{'.$parameter->getName().'}';
+            }
 
-            list($callable, $arguments) = $this->toCallable($callable, $arguments);
-        
+            return;
+        }
+
+        if (is_string($callback)) {
+            $this->parseString($callback);
+            return;
+        }
+
+        throw new Callback\InvalidCallbackException($callback);
+    }
+
+    public function invocable()
+    {
+        $callback = $this;
+
+        return function($incomingArguments = null) use ($callback) {
+            return $callback->run($incomingArguments);
+        };
+    }
+
+    public function run($incoming = null)
+    {
+        if ($this->expectedArguments) {
+
+            $arguments = [];
+            foreach ($this->expectedArguments as $expectedArgument) {
+                $arguments[] = $this->match($expectedArgument, $incoming);
+            }
+
         } else {
-            $arguments = [
-                $this->request->withAttributes($arguments),
-                $this->response,
-                &$this->data
-            ];
+            $arguments = is_array($incoming) ? $incoming : [$incoming];
         }
 
-        if (!is_callable($callable)) {
-            throw new Exception\InvalidCallback;
+        try {
+            return call_user_func_array($this->callable, $arguments);
+        } catch (\Exception $e) {
+            throw new Callback\ExecutionException($e, $this);
         }
 
-        ob_start();
-        $output = call_user_func_array($callable, $arguments);
-        $stdOut = ob_get_contents(); //Keep in mind: If errors were triggerd via trigger_error during controller executions, they will be in $stdOut
-        ob_end_clean();
-
-        if (!strlen($stdOut)) {
-            $stdOut = null;
-        }
-
-        return $output === null ? $stdOut : $output;
     }
 
-    /**
-     * Given a string in the form someClass->someFunction()
-     * return the corresponding valid callable.
-     *
-     * Setting argument values:
-     * stringToCallback("someClass->someFunction({arg1}, {arg2})",  array("arg1" => $argument1Value, "arg2" => $argument2Value))
-     *
-     * If no valid callable is found a E_USER_ERROR will be triggered
-     *
-     */
-    private function toCallable($string, $argumentValues = array())
+    public function getCallable()
+    {
+        return $this->callable;
+    }
+
+    private function match($value, $arguments)
+    {
+        if ($value === "" || strtolower($value) === "null") {
+            return null;
+        }
+
+        if ($value[0] === "{") {
+            $keyName = substr($value, 1, -1);
+            //return isset($arguments[$keyName]) ? $arguments[$keyName] : null;
+            return $this->getProperty($keyName, $arguments);
+        }
+
+        if (strtolower($value) === "true") {
+            return true;
+        }
+
+        if (strtolower($value) === "false") {
+            return false;
+        }
+
+        return $value;
+    }
+
+
+    /*
+    arguments:
+    request => this->request
+    response => this->response
+    object => {
+        // some object!
+        a: {
+            b: {}
+        }
+    }
+
+    getProperty("request")    --> this->request
+    getProperty("object")     --> the object
+    getProperty("object.a")   --> {b: {}}
+    getProperty("object.a.n") --> {}
+
+    */
+
+    private function getProperty($key, $arguments)
+    {
+        $parts         = explode(".", $key);
+        $currentTarget = $arguments;
+
+        foreach ($parts as $part) {
+
+            if (is_scalar($currentTarget)) {
+                return null;
+            }
+
+            if (is_object($currentTarget)) {
+
+                if (!isset($currentTarget->$part)) {
+                    return null;
+                }
+
+                $currentTarget = $currentTarget->$part;
+
+            } elseif (is_array($currentTarget)) {
+
+                if (!isset($currentTarget[$part])) {
+                    return null;
+                }
+
+                $currentTarget = $currentTarget[$part];
+
+            }
+
+        }
+
+        return $currentTarget;
+    }
+
+
+    private function parseString($string)
     {
         $isStatic = strpos($string, "::") !== false;
 
@@ -68,78 +167,30 @@ class Callback
         $parts    = explode("->", $string);
 
         if (count($parts) !== 2) {
-            trigger_error("Invalid callable '$string'", E_USER_ERROR);
+            throw new Callback\InvalidCallbackException("'$string' is not a valid callback string");
         }
 
         $classname   = $parts[0];
         $methodParts = explode("(", $parts[1], 2);
         $method      = $methodParts[0];
 
-        if (!is_callable(array($classname, $method))) {
-            trigger_error("'$string' is not a valid callback", E_USER_ERROR);
-        }
-
-        $arguments         = array();
         $expectedArguments = str_replace(")", "", $methodParts[1]);
-        $expectedArguments = explode(",", $expectedArguments);
+        $expectedArguments = array_map('trim', explode(",", $expectedArguments));
 
-        foreach ($expectedArguments as $argument) {
-
-            $argument = trim($argument);
-
-            if ($argument === "") {
-                continue;
-            }
-
-            if ($argument[0] === "{") {
-                $argumentName = substr($argument, 1, -1);
-                $arguments[]  = isset($argumentValues[$argumentName]) ? $argumentValues[$argumentName] : null;
-                continue;
-            }
-
-            if (strtolower($argument) === "null") {
-                $arguments[] = null;
-                continue;
-            }
-
-            if (strtolower($argument) === "true") {
-                $arguments[] = true;
-                continue;
-            }
-
-            if (strtolower($argument) === "false") {
-                $arguments[] = false;
-                continue;
-            }
-
-
-            $replaceKeys   = array();
-            $replaceValues = array();
-
-            foreach ($argumentValues as $argumentName => $argumentValue) {
-                $replaceKeys[]   = "{".$argumentName."}";
-                $replaceValues[] = is_string($argumentValue) ? $argumentValue : null;
-            }
-
-            $arguments[] = str_replace($replaceKeys, $replaceValues, $argument);
+        if (!is_callable([$classname, $method])) {
+            throw new Callback\InvalidCallbackException("$string is not callable");
         }
 
         if ($isStatic) {
-            $callable = array($classname, $method);
+            $callable = [$classname, $method];
         } else {
-
-            /* Special case: classname extends Phidias\Api\Resource\Controller */
-            if (is_subclass_of($classname, "Phidias\Api\Resource\Controller")) {
-                $object = new $classname($this->request, $this->response);
-            } else {
-                $object = new $classname;
-            }
-            
-            $callable = array($object, $method);
+            $object   = new $classname;
+            $callable = [$object, $method];
         }
 
-        return array($callable, $arguments);
-    }
+        $this->callable          = $callable;
+        $this->expectedArguments = $expectedArguments;
 
+    }
 
 }

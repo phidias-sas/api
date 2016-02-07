@@ -16,7 +16,6 @@ class Apache implements EnvironmentInterface
             ->withUri(self::getUri())
             ->withQueryParams(self::getQueryParams())
             ->withBody(new Stream("php://input"))
-            ->withParsedBody(self::parseBody())
             ->withUploadedFiles(self::getUploadedFiles());
 
         foreach (self::getHeaders() as $headerName => $headerValue) {

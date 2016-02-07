@@ -1,280 +1,406 @@
 <?php
 namespace Phidias\Api;
 
-use Phidias\Api\Dispatcher\Exception;
-use Phidias\Api\Dispatcher\Property;
-use Phidias\Api\Dispatcher\Callback;
-use Phidias\Api\Dispatcher\DispatcherInterface;
-use Phidias\Api\Dispatcher\AccessControl;
-
 use Phidias\Utilities\Debugger;
+use Phidias\Api\Dispatcher\Callback;
 
-class Dispatcher implements DispatcherInterface
+/**
+ *
+ * $dispatcher = new Dispatcher;
+ * $dispatcher->add($action, $attributes);
+ * $dispatcher->add($action, $attributes);
+ * ....
+ *
+ * $response = $dispatcher->dispatch($request);
+ */
+
+class Dispatcher
 {
-    private $authorization;
-    private $authentication;
-    private $validators;
-    private $controller;
-    private $templates;
-    private $filters;
-    private $exceptions;
-    private $accessControl;
-
-    private $templateEngineClass;
+    private $queue = [];
 
     private $request;
     private $response;
-    private $data;
+    private $input;
+    private $output;
 
-    public function __construct()
+    private $callbackArguments; // the arguments to be sent to all callbacks
+
+    public function add(Action $action, $attributes = null)
     {
-        $this->authorization       = null;
-        $this->authentication      = null;
-        $this->validators          = [];
-        $this->controller          = null;
-        $this->templates           = [];
-        $this->filters             = [];
-        $this->exceptions          = [];
-        $this->accessControl       = [];
-
-        $this->templateEngineClass = "Phidias\Api\Dispatcher\TemplateEngine";
+        $this->queue[] = [$action, $attributes];
     }
 
-
-    /**
-     * Perform voodoo to obtain a Response for the given ServerRequest
-     *
-     * @return Http\Response
-     */
     public function dispatch(\Psr\Http\Message\ServerRequestInterface $request)
     {
         $this->request  = $request;
-        $this->response = new Http\Response();
+        $this->response = new Http\Response;
+        $this->input    = null;
+        $this->output   = null;
+
+        $this->callbackArguments = [
+            "request"  => &$this->request,
+            "response" => &$this->response,
+            "input"    => &$this->input,
+            "output"   => &$this->output,
+            "query"    => $this->getQueryObject()
+        ];
 
         try {
-            $this->authenticate();
-        } catch (\Exception $exception) {
-            return $this->handleException($exception, 401); // Unauthorized
-        }
 
-        try {
-            $this->authorize();
-        } catch (\Exception $exception) {
-            return $this->handleException($exception, 403); // Forbidden
-        }
-
-        try {
-            $this->validate();
-        } catch (\Exception $exception) {
-            return $this->handleException($exception, 422); // Unprocessable Entity
-        }
-
-        try {
-            $this->execute();
-            $this->runFilters();
-        } catch (\Exception $exception) {
-            return $this->handleException($exception);
-        }
-
-        return $this->finalize();
-    }
-
-
-    private function handleException($exception, $code = 500)
-    {
-        $this->response->status($code, $exception->getMessage());
-        $this->response->header("X-Phidias-Exception", get_class($exception));
-
-        $this->data = $exception;
-
-        // Execute all matching "catch" from resource definition
-        foreach ($this->exceptions as $exceptionHandler) {
-            list($exceptionClass, $callback) = $exceptionHandler->value;
-            if (is_a($exception, $exceptionClass)) {
-                $this->executeCallback($callback, array_merge($exceptionHandler->arguments, [
-                    "exception" => $exception
-                ]));
+            try {
+                $this->runInputParser();
+            } catch (\Exception $e) {
+                throw new Dispatcher\Exception\ParseException($e);
             }
+
+            try {
+                $this->runAuthentication();
+            } catch (\Exception $e) {
+                throw new Dispatcher\Exception\AuthenticationException($e);
+            }
+
+            try {
+                $this->runAuthorization();
+            } catch (\Exception $e) {
+                throw new Dispatcher\Exception\AuthorizationException($e);
+            }
+
+            try {
+                $this->runValidation();
+            } catch (\Exception $e) {
+                throw new Dispatcher\Exception\ValidationException($e);
+            }
+
+            try {
+                $this->runControllers();
+            } catch (\Exception $e) {
+                throw new Dispatcher\Exception\ControllerException($e);
+            }
+
+            try {
+                $this->runFilters();
+            } catch (\Exception $e) {
+                throw new Dispatcher\Exception\FilterException($e);
+            }
+
+        } catch (Dispatcher\Exception $e) {
+
+            $this->response = $e->filterResponse($this->response);
+
+            try {
+
+                $this->runExceptionHandlers($e->getOriginalException());
+
+            } catch (\Exception $final) {
+
+                // FUBAR.  An exception was thrown during exception handling
+                $body = new Http\Stream("php://temp", "w");
+                $body->write($final->getMessage());
+
+                $this->response
+                    ->status(500, get_class($final))
+                    ->body($body);
+
+            }
+
         }
 
-        return $this->finalize();
-    }
-
-
-    private function finalize()
-    {
         try {
-
             $this->render();
-
-        } catch (Exception\RenderException $exception) {
-
-            $this->response->status(406, $exception->getMessage()); //Not Acceptable
-            $this->response->header("X-Phidias-Exception", get_class($exception));
-
-        } catch (\Exception $exception) {
-
-            $this->response->status(500, $exception->getMessage());
-            $this->response->header("X-Phidias-Exception", get_class($exception));
-
+        } catch (\Exception $e) {
+            $this->response->status(406, get_class($e));
+            $this->renderAsJson();
         }
+
 
         $this->setAccessControl();
 
         return $this->response;
     }
 
-
-
-    public static function factory($array)
+    private function getCallbackArguments($attributes = null)
     {
-        $dispatcher = new Dispatcher;
-
-        if (isset($array["authentication"])) {
-            $dispatcher->authentication($array["authentication"]);
+        if (!$attributes) {
+            return $this->callbackArguments;
         }
 
-        if (isset($array["authorization"])) {
-            $dispatcher->authorization($array["authorization"]);
-        }
+        $retval = array_merge($this->callbackArguments, $attributes);
+        $retval["request"] = $retval["request"]->withAttributes($attributes);
 
-        if (isset($array["validate"])) {
-            foreach ( (array)$array["validate"] as $validator ) {
-                $dispatcher->validator($validator);
+        return $retval;
+    }
+
+    private function getQueryObject()
+    {
+        // The query string interpreted as an object
+        $params = $this->request->getQueryParams();
+        return $params ? json_decode(json_encode($params)) : null;
+    }
+
+    private function runInputParser()
+    {
+        $parser = null;
+        $incomingMediaType = $this->request->getHeaderLine("content-type");
+
+        foreach ($this->queue as $inchuchu) {
+
+            $action = $inchuchu[0];
+
+            $parser = $action->getParser($incomingMediaType);
+            if ($parser) {
+                break;
             }
+
         }
 
-        if (isset($array["controller"])) {
-            $dispatcher->controller($array["controller"]);
+        if ($parser) {
+
+            $arguments          = $this->getCallbackArguments();
+            $arguments["input"] = (string)$this->request->getBody();
+
+            $this->input = Callback::factory($parser)->run($arguments);
+            return;
         }
 
-        if (isset($array["template"])) {
 
-            if (is_string($array["template"])) {
-                $dispatcher->template($array["template"]);
-            } else {
+        // Default input parser:
+        // pass trought _POST if present, otherwise attempt to decode JSON
 
-                foreach ($array["template"] as $mimetype => $templateData) {
+        $parsedBody = $this->request->getParsedBody();
+        if ($parsedBody) {
+            $this->input = $parsedBody;
+            return;
+        }
 
-                    if (is_string($templateData)) {
-                        $dispatcher->template($templateData, $mimetype);
-                    } else {
-                        foreach ($templateData as $objectType => $templateFile) {
-                            $dispatcher->template($templateFile, $mimetype, $objectType);
-                        }
-                    }
+        if (isset($_POST) && !empty($_POST)) {
+            $this->input = $_POST;
+            return;
+        }
 
+        $inputString = (string)$this->request->getBody();
+        $inputJson   = json_decode($inputString);
+
+        $this->input = $inputJson ?: $inputString;
+
+    }
+
+
+    private function runAuthentication()
+    {
+        foreach ($this->queue as $inchuchu) {
+
+            $action     = $inchuchu[0];
+            $attributes = $inchuchu[1];
+
+            $arguments = $this->getCallbackArguments($attributes);
+
+            foreach ($action->getAuthentication() as $callback) {
+                $retval = Callback::factory($callback)->run($arguments);
+            }
+
+        }
+    }
+
+    private function runAuthorization()
+    {
+        foreach ($this->queue as $inchuchu) {
+
+            $action     = $inchuchu[0];
+            $attributes = $inchuchu[1];
+
+            $arguments = $this->getCallbackArguments($attributes);
+
+            foreach ($action->getAuthorization() as $callback) {
+                $retval = Callback::factory($callback)->run($arguments);
+
+                if ($retval === false) {
+                    throw new \Exception("interruption");
+                }
+            }
+
+        }
+    }
+
+    private function runValidation()
+    {
+        foreach ($this->queue as $inchuchu) {
+
+            $action     = $inchuchu[0];
+            $attributes = $inchuchu[1];
+
+            $arguments = $this->getCallbackArguments($attributes);
+
+            foreach ($action->getValidations() as $callback) {
+
+                $retval = Callback::factory($callback)->run($arguments);
+
+                // if false is returned, throw an exception
+                if ($retval === false) {
+                    throw new \Exception("validation failed");
+                }
+
+                // if data is returned, use it as the output
+                if (!is_bool($retval) && $retval) {
+                    $this->output = $retval;
+                    throw new \Exception("validation errors");
+                }
+            }
+
+        }
+    }
+
+    private function runControllers()
+    {
+        foreach ($this->queue as $inchuchu) {
+
+            $action     = $inchuchu[0];
+            $attributes = $inchuchu[1];
+
+            $arguments = $this->getCallbackArguments($attributes);
+
+            foreach ($action->getControllers() as $callback) {
+
+                $result = Callback::factory($callback)->run($arguments);
+
+                if ($result instanceOf \Psr\Http\Message\ResponseInterface) {
+                    $this->response = $result;
+                } elseif ($result !== null) {
+                    $this->output = $result;
                 }
 
             }
 
         }
 
-        if (isset($array["filter"])) {
-            foreach ( (array)$array["filter"] as $filter ) {
-                $dispatcher->filter($filter);
+    }
+
+    private function runFilters()
+    {
+        foreach ($this->queue as $inchuchu) {
+
+            $action     = $inchuchu[0];
+            $attributes = $inchuchu[1];
+
+            $arguments = $this->getCallbackArguments($attributes);
+
+            foreach ($action->getFilters() as $callback) {
+
+                $result = Callback::factory($callback)->run($arguments);
+
+                if ($result instanceOf \Psr\Http\Message\ResponseInterface) {
+                    $this->response = $result;
+                } elseif ($result !== null) {
+                    $this->output = $result;
+                }
+
+            }
+
+        }
+
+    }
+
+    private function runExceptionHandlers($exception)
+    {
+        foreach ($this->queue as $inchuchu) {
+
+            $action     = $inchuchu[0];
+            $attributes = $inchuchu[1];
+
+            $arguments              = $this->getCallbackArguments($attributes);
+            $arguments["exception"] = $exception;
+
+
+            foreach ($action->getExceptionHandlers($exception) as $callbacks) {
+
+                foreach ($callbacks as $callback) {
+                    $result = Callback::factory($callback)->run($arguments);
+
+                    if ($result instanceOf \Psr\Http\Message\ResponseInterface) {
+                        $this->response = $result;
+                    }
+                }
+
+            }
+
+        }
+    }
+
+    private function setAccessControl()
+    {
+        foreach ($this->queue as $inchuchu) {
+            $action = $inchuchu[0];
+            if ($control = $action->getAccessControl()) {
+                $this->response = $control->filter($this->response, $this->request);
             }
         }
-
-        if (isset($array["catch"])) {
-            foreach ($array["catch"] as $exceptionClass => $callback) {
-                $dispatcher->handle($exceptionClass, $callback);
-            }
-        }
-
-        if (isset($array["access-control"])) {
-            $dispatcher->accessControl($array["access-control"]);
-        }
-
-        return $dispatcher;
-    }
-
-
-
-
-    private function authenticate()
-    {
-        if ($this->authentication === null) {
-            return;
-        }
-
-        if (! $this->executeCallback($this->authentication->value, $this->authentication->arguments)) {
-            throw new Exception\AuthenticationException;
-        }
-    }
-
-    private function authorize()
-    {
-        if ($this->authorization === null) {
-            return;
-        }
-
-        if (! $this->executeCallback($this->authorization->value, $this->authorization->arguments)) {
-            throw new Exception\AuthorizationException;
-        }
-    }
-
-    private function validate()
-    {
-        foreach ($this->validators as $validator) {
-            if (false === $this->executeCallback($validator->value, $validator->arguments)) {
-                throw new Exception\ValidationException;
-            }
-        }
-    }
-
-    private function execute()
-    {
-        if ($this->controller === null) {
-            return;
-        }
-
-        Debugger::startBlock("running controller ".print_r($this->controller->value, true));
-
-        $this->data = $this->executeCallback($this->controller->value, $this->controller->arguments);
-
-        Debugger::endBlock();
-
     }
 
     private function render()
     {
         Debugger::startBlock("rendering response data");
 
-        list($template, $mediaType) = $this->findSuitableTemplate($this->getAcceptedMediaTypes($this->request), $this->data);
+        $acceptedMediaTypes   = $this->getAcceptedMediaTypes($this->request);
+        $acceptedMediaTypes[] = "application/json";
 
-        //!!! no template found.
-        if ($template === null) {
+        $renderer         = null;
+        $foundContentType = null;
 
-            Debugger::add("no template found: encoding as json");
+        foreach ($this->queue as $inchuchu) {
 
-            $body = new Http\Stream("php://temp", "w");
-            $body->write(json_encode($this->data, JSON_PRETTY_PRINT));
+            $action = $inchuchu[0];
 
-            $this->response
-                ->header("Content-Type", "application/json; charset=utf-8")
-                ->body($body);
-
-            Debugger::endBlock();
-            return;
+            foreach ($acceptedMediaTypes as $mediaType) {
+                $renderer = $action->getRenderer($mediaType);
+                if ($renderer) {
+                    $foundContentType = $mediaType;
+                    break 2;
+                }
+            }
         }
 
-        Debugger::add("using template '$template'");
-
-        $engine = $this->getTemplateEngine();
-
-        $engine->assign("data", $this->data);
-        $engine->assign("request", $this->request);
-        $engine->assign("response", $this->response);
 
         $body = new Http\Stream("php://temp", "w");
-        $body->write($engine->render($template));
-
         $this->response->body($body);
-        $this->response->header("Content-Type", $mediaType."; charset=utf-8");
+
+        // No renderer: write output as JSON
+        if (!$renderer) {
+
+            $this->response->header("Content-Type", "application/json; charset=utf-8");
+            $body->write(json_encode($this->output, JSON_PRETTY_PRINT));
+
+        } elseif (is_file($renderer)) {
+            
+            $this->response->header("Content-Type", "$foundContentType; charset=utf-8");
+            $body->write($this->renderFile($renderer));
+
+        } else {
+
+            $callback = Callback::factory($renderer);
+            $string = $callback->run($this->getCallbackArguments());
+
+            $this->response->header("Content-Type", "$foundContentType; charset=utf-8");
+            $body->write($string);
+
+        }
 
         Debugger::endBlock();
+
     }
+
+    private function renderFile($filename)
+    {
+        foreach ($this->callbackArguments as $name => $value) {
+            $$name = $this->callbackArguments[$name];
+        }
+
+        ob_start();
+            include $filename;
+            $stdout = ob_get_contents();
+        ob_end_clean();
+
+        return $stdout;
+    }
+
 
     private function getAcceptedMediaTypes($request)
     {
@@ -293,214 +419,7 @@ class Dispatcher implements DispatcherInterface
             }
         }
 
-        /* assume application/json is always accepted (as a fallback) */
-        $acceptedMediaTypes[] = "application/json";
-
         return $acceptedMediaTypes;
-    }
-
-    private function getDataTypes($data)
-    {
-        $retval = [];
-
-        $datatype = gettype($data);
-
-        if ($datatype === "object") {
-
-            $class    = get_class($data);
-            $retval[] = $class;
-
-            while ($class = get_parent_class($class)) {
-                $retval[] = $class;
-            }
-        }
-
-        $retval[] = $datatype;
-
-        return $retval;
-    }
-
-    private function getTemplateEngine()
-    {
-        return new $this->templateEngineClass;
-    }
-
-    private function findSuitableTemplate($acceptedMediaTypes, $data)
-    {
-        $acceptedMediaTypes[] = "any";
-
-        $dataTypes   = $this->getDataTypes($data);
-        $dataTypes[] = "any";
-
-        foreach ($acceptedMediaTypes as $mediaType) {
-            foreach ($dataTypes as $dataType) {
-
-                if (isset($this->templates[$mediaType][$dataType])) {
-                    return [$this->templates[$mediaType][$dataType], $mediaType];
-                }
-
-            }
-        }
-
-        return [null, null];
-    }
-
-    private function runFilters()
-    {
-        foreach ($this->filters as $filterProperty) {
-
-            $retval = $this->executeCallback($filterProperty->value, $filterProperty->arguments);
-
-            if (is_a($retval, "Phidias\Api\Http\Response")) {
-                $this->response = $retval;
-            }
-
-        }
-    }
-
-    private function setAccessControl()
-    {
-        foreach ($this->accessControl as $ruleProperty) {
-            AccessControl::factory($ruleProperty->value)->filter($this->response, $this->request);
-        }
-    }
-
-
-    /* Setters*/
-
-    public function authorization($authorization)
-    {
-        $this->authorization = new Property($authorization);
-        return $this;
-    }
-
-    public function authentication($authentication)
-    {
-        $this->authentication = new Property($authentication);
-        return $this;
-    }
-
-    public function validator($validator)
-    {
-        $this->validators[] = new Property($validator);
-        return $this;
-    }
-
-    public function controller($controller)
-    {
-        $this->controller = new Property($controller);
-        return $this;
-    }
-
-    public function accessControl($rule)
-    {
-        $this->accessControl[] = new Property($rule);
-    }
-
-    public function template($template, $mimetype = null, $datatype = null)
-    {
-        if (!is_file($template)) {
-            trigger_error("'$template' is not a valid file", E_USER_ERROR);
-        }
-
-        if ($mimetype === null) {
-            $mimetype = "any";
-        }
-
-        if ($datatype === null) {
-            $datatype = "any";
-        }
-
-        if (! isset($this->templates[$mimetype])) {
-            $this->templates[$mimetype] = [];
-        }
-
-        if (! isset($this->templates[$mimetype][$datatype])) {
-            $this->templates[$mimetype][$datatype] = [];
-        }
-
-        $this->templates[$mimetype][$datatype] = $template;
-
-        return $this;
-    }
-
-    public function filter($filter)
-    {
-        $this->filters[] = new Property($filter);
-        return $this;
-    }
-
-    public function handle($exceptionClass, $callback)
-    {
-        $this->exceptions[] = new Property([$exceptionClass, $callback]);
-        return $this;
-    }
-
-
-
-    /* Callback interpreter */
-    private function executeCallback($callable, $arguments = [])
-    {
-        return (new Callback($this->request, $this->response, $this->data))->execute($callable, $arguments);
-    }
-
-
-
-    /* Dispatcher management */
-
-    /**
-     * Combine with a second dispatcher
-     */
-    public function merge(DispatcherInterface $dispatcher)
-    {
-        if ($dispatcher->authorization !== null) {
-            $this->authorization = $dispatcher->authorization;
-        }
-
-        if ($dispatcher->authentication !== null) {
-            $this->authentication = $dispatcher->authentication;
-        }
-
-        $this->validators = array_merge($this->validators, $dispatcher->validators);
-
-        if ($dispatcher->controller !== null) {
-            $this->controller = $dispatcher->controller;
-        }
-
-        $this->templates     = array_merge($this->templates, $dispatcher->templates);
-        $this->filters       = array_merge($this->filters, $dispatcher->filters);
-        $this->exceptions    = array_merge($this->exceptions, $dispatcher->exceptions);
-        $this->accessControl = array_merge($this->accessControl, $dispatcher->accessControl);
-
-        return $this;
-    }
-
-
-    public function setArguments(array $arguments = [])
-    {
-        //Go through all properties and set the arguments
-        $this->setArgumentsToProperty($this->authorization, $arguments);
-        $this->setArgumentsToProperty($this->authentication, $arguments);
-        $this->setArgumentsToProperty($this->validators, $arguments);
-        $this->setArgumentsToProperty($this->controller, $arguments);
-        $this->setArgumentsToProperty($this->filters, $arguments);
-        $this->setArgumentsToProperty($this->exceptions, $arguments);
-    }
-
-    private function setArgumentsToProperty($property, $arguments)
-    {
-        if ($property === null) {
-            return;
-        }
-
-        if (is_array($property)) {
-            foreach ($property as $p) {
-                $this->setArgumentsToProperty($p, $arguments);
-            }
-            return;
-        }
-
-        $property->arguments = $arguments;
     }
 
 }

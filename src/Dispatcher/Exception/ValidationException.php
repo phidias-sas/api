@@ -1,18 +1,14 @@
 <?php
 namespace Phidias\Api\Dispatcher\Exception;
-use Phidias\Api\Dispatcher\Exception;
 
-class ValidationException extends Exception
+class ValidationException extends \Phidias\Api\Dispatcher\Exception
 {
-    private $errors;
-
-    public function __construct($errors)
+    public function filterResponse($response)
     {
-        $this->errors = $errors;
-    }
+        $response = parent::filterResponse($response);
 
-    public function getErrors()
-    {
-        return $this->errors;
-    }
+        $exceptionName = get_class($this->originalException);
+
+        return $response->withStatus(422, $exceptionName != "Exception" ? $exceptionName: null);
+    }    
 }

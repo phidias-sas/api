@@ -47,6 +47,30 @@ class Module
         return self::$loadedModules;
     }
 
+
+    private static function runInitialization($path)
+    {
+        foreach (self::getFileList($path."/".self::DIR_INITIALIZATION) as $file) {
+            include $file;
+        }
+    }
+
+    private static function loadConfiguration($path)
+    {
+        foreach (self::getFileList($path."/".self::DIR_CONFIGURATION) as $file) {
+            Configuration::set(include $file);
+        }
+    }
+
+    private static function loadResources($path)
+    {
+        foreach (self::getFileList($path."/".self::DIR_RESOURCES) as $file) {
+            Server::resource(include $file);
+        }
+    }
+
+
+
     public static function install($modules)
     {
         /* Step 1: Include all configuration */
@@ -108,27 +132,6 @@ class Module
         return $allFiles;
     }
 
-    private static function runInitialization($path)
-    {
-        foreach (self::getFileList($path."/".self::DIR_INITIALIZATION) as $file) {
-            include $file;
-        }
-    }
-
-    private static function loadConfiguration($path)
-    {
-        foreach (self::getFileList($path."/".self::DIR_CONFIGURATION) as $file) {
-            Configuration::set(include $file);
-        }
-
-    }
-
-    private static function loadResources($path)
-    {
-        foreach (self::getFileList($path."/".self::DIR_RESOURCES) as $file) {
-            Server::resource(include $file);
-        }
-    }
 
     private static function getFileList($folder, $pattern = "*.php", $subfoldersFirst = true, $rootFolder = null)
     {

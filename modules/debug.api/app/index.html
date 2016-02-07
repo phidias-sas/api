@@ -1,0 +1,295 @@
+<!doctype html>
+<html ng-app="phidias-debugger">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+
+        <title>Phidias Debugger</title>
+        <script src="//ajax.googleapis.com/ajax/libs/angularjs/1.4.7/angular.min.js" type="text/javascript"></script>
+
+        <style type="text/css">
+        html {
+            font-family: Courier, Terminal, sans-serif;
+            box-sizing: border-box;
+        }
+
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+
+        h1, h2, h3, h4 {
+            margin: 0;
+            font-weight: normal;
+        }
+
+        pre {
+            margin: 0;
+            padding: 0;
+        }
+
+        main {
+            margin: 0;
+            padding: 0;
+        }
+
+        #controls {
+            margin: 12px;
+        }
+
+        #summary {
+            margin: 12px;
+        }
+
+        #summary td {
+            padding-right: 12px;
+        }
+
+        #summary thead td {
+            font-size: 11px;
+            color: #666;
+            vertical-align: bottom;
+        }
+
+
+        .message .body {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .message .body thead td {
+            font-size: 0.8em !important;
+            color: #666 !important;
+            vertical-align: bottom;
+            white-space: normal !important;
+        }
+
+        .message .body td {
+            vertical-align: top;
+            color: #222;
+            padding: 6px;
+            padding-right: 16px;
+        }
+
+        .message .body tbody td {
+            border-top: 1px solid #ddd;
+        }
+
+        .message .body tbody .memory {
+            white-space: nowrap;
+        }
+
+        .message .body .duration {
+            min-width: 75px;
+        }
+
+        .message .body .memory,
+        .message .body .timer {
+            min-width: 80px;
+            text-align: right;
+            font-size: 0.9em;
+        }
+
+        .message .body .text {
+            width: 100%;
+
+            white-space: pre-wrap;
+        }
+
+        .message .body tbody .text {
+            border-left: 6px solid #00b6f0;
+        }
+
+
+        .message.SQL > .body td {
+            background-color: #ff8;
+        }
+
+        .message.SQL > .body .text {
+            border-left-color: #fba01c;
+        }
+
+        .message.resource > .body  .text {
+            border-left-color: #98dd00;
+        }
+
+
+        </style>
+
+
+        <script type="text/ng-template" id="message.html">
+            <div class="message {{message.type}}" ng-class="message.type">
+                <table class="body">
+                    <tbody>
+                        <tr>
+                            <td class="duration" ng-bind="message.duration|seconds"></td>
+                            <td class="text" ng-bind="message.text" style="padding-left: {{depth*20 + 10}}px"></td>
+                            <td class="memory" ng-bind="message.memory|bytes"></td>
+                            <td class="timer" ng-bind="(message.timestamp - vm.data.timestamp)|seconds"></td>
+                        </td>
+                    </tbody>
+                </table>
+
+                <div class="messages">
+                    <div ng-include="'message.html'" ng-repeat="message in message.messages" ng-init="depth = depth+1"></div>
+                </div>
+            </div>
+        </script>
+
+
+
+
+
+        <script type="text/javascript">
+
+        angular.module("phidias-debugger", [])
+            .controller("mainController", mainController)
+            .filter('bytes', bytes)
+            .filter('seconds', seconds);
+
+        function bytes()
+        {
+            return function(bytes, precision) {
+                if (isNaN(parseFloat(bytes)) || !isFinite(bytes)) return '-';
+                if (typeof precision === 'undefined') precision = 1;
+                var units = ['bytes', 'kB', 'MB', 'GB', 'TB', 'PB'],
+                    number = Math.floor(Math.log(bytes) / Math.log(1024));
+                return (bytes / Math.pow(1024, Math.floor(number))).toFixed(precision) +  ' ' + units[number];
+            }
+        }
+
+        function seconds()
+        {
+            return function(seconds, precision) {
+                if (typeof precision === 'undefined') precision = 2;
+                return (parseFloat(seconds)*1000).toFixed(precision);
+            }
+        }
+
+
+        mainController.$inject = ["$http", "$location", "$interval"];
+        function mainController($http, $location, $interval)
+        {
+            var vm          = this;
+
+            vm.host         = $location.absUrl().replace(/\/+$/, "");
+
+            vm.debugId      = null;
+            vm.lastModified = null;
+            vm.data         = null;
+            vm.error        = null;
+
+            vm.ticker       = null;
+            vm.load         = load;
+            vm.play         = play;
+            vm.pause        = pause;
+
+            function load(debugId)
+            {
+                $http.get(vm.host + '/' + debugId).then( function(response) {
+
+                    vm.error = null;
+
+                    var lastModified = response.headers('Last-Modified');
+                    if (vm.lastModified != lastModified) {
+                        vm.data         = response.data;
+                        vm.lastModified = lastModified;
+                    }
+
+                }, function(response) {
+                    vm.data  = null;
+                    vm.error = response;
+                    vm.pause();
+                });
+            }
+
+            function play() {
+
+                if (vm.ticker) {
+                    return;
+                }
+
+                vm.lastModified = null;
+
+                vm.ticker = $interval(function() {
+                    load(vm.debugId);
+                }, 420);
+            }
+
+            function pause() {
+
+                if (!vm.ticker) {
+                    return;
+                }
+
+                $interval.cancel(vm.ticker);
+                vm.ticker = null;
+            }
+
+        }
+
+        </script>
+    </head>
+
+    <body ng-controller="mainController as vm">
+
+        <main>
+            <div id="controls">
+                <h1>Debugger</h1>
+                <span ng-bind="vm.host"></span>/<input type="text" ng-model="vm.debugId" />
+                <button ng-click="vm.play()" ng-show="!vm.ticker">go</button>
+                <button ng-click="vm.pause()" ng-show="vm.ticker">pause</button>
+            </div>
+
+            <div id="error" ng-show="vm.error">
+                <h1>Error</h1>
+                {{vm.error}}
+            </div>
+
+            <div id="debugger" ng-show="vm.data">
+
+                <table id="summary">
+                    <thead>
+                        <tr>
+                            <td>Execution time</td>
+                            <td>Peak memory</td>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        <tr>
+                            <td>{{vm.data.duration|seconds}} ms</td>
+                            <td>{{vm.data.memory|bytes:2}}</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="message">
+                    <table class="body">
+                        <thead>
+                            <tr>
+                                <td class="duration">duration [ms]</td>
+                                <td class="text"></td>
+                                <td class="memory">memory</td>
+                                <td class="timer">timer [ms]</td>
+                            </td>
+                        </thead>
+                    </table>
+
+                    <div class="messages">
+                        <div ng-include="'message.html'" ng-repeat="message in vm.data.messages" ng-init="depth = 0"></div>
+                    </div>
+                </div>
+
+            </div>
+
+
+        </main>
+    </body>
+
+
+</html>

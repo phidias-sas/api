@@ -83,6 +83,13 @@ class Dispatcher
                 throw new Dispatcher\Exception\FilterException($e);
             }
 
+            // try to render the output
+            try {
+                $this->render();
+            } catch (\Exception $e) {
+                throw new Dispatcher\Exception\RenderException($e);
+            }
+
         } catch (Dispatcher\Exception $e) {
 
             $this->response = $e->filterResponse($this->response);
@@ -103,15 +110,15 @@ class Dispatcher
 
             }
 
-        }
+            // try to render, but do not allow user callbacks (since at this point an error ocurred)
+            try {
+                $this->render(false);
+            } catch (\Exception $e) {
+                // Exception during rendering  
+                $this->response->status(406, get_class($e));
+            }
 
-        try {
-            $this->render();
-        } catch (\Exception $e) {
-            $this->response->status(406, get_class($e));
-            $this->renderAsJson();
         }
-
 
         $this->setAccessControl();
 
@@ -335,29 +342,36 @@ class Dispatcher
         }
     }
 
-    private function render()
+    private function render($allowCustomCallbacks = true)
     {
+        // If the response already has data, ignore
+        if (!!$this->response->getBody()) {
+            return;
+        }
+
+
         Debugger::startBlock("rendering response data");
 
         $acceptedMediaTypes   = $this->getAcceptedMediaTypes($this->request);
         $acceptedMediaTypes[] = "application/json";
 
-        $renderer         = null;
-        $foundContentType = null;
+        $renderer  = null;
+        $mediaType = null;
 
-        foreach ($this->queue as $inchuchu) {
+        if ($allowCustomCallbacks) {
+            foreach ($this->queue as $inchuchu) {
 
-            $action = $inchuchu[0];
+                $action     = $inchuchu[0];
+                $attributes = $inchuchu[1];
 
-            foreach ($acceptedMediaTypes as $mediaType) {
-                $renderer = $action->getRenderer($mediaType);
-                if ($renderer) {
-                    $foundContentType = $mediaType;
-                    break 2;
+                foreach ($acceptedMediaTypes as $mediaType) {
+                    $renderer = $action->getRenderer($mediaType);
+                    if ($renderer) {
+                        break 2;
+                    }
                 }
             }
         }
-
 
         $body = new Http\Stream("php://temp", "w");
         $this->response->body($body);
@@ -366,19 +380,19 @@ class Dispatcher
         if (!$renderer) {
 
             $this->response->header("Content-Type", "application/json; charset=utf-8");
-            $body->write(json_encode($this->output, JSON_PRETTY_PRINT));
+            $body->write(!empty($this->output) ? json_encode($this->output, JSON_PRETTY_PRINT) : null);
 
-        } elseif (is_file($renderer)) {
-            
-            $this->response->header("Content-Type", "$foundContentType; charset=utf-8");
+        } elseif (is_string($renderer) && file_exists($renderer)) {
+
+            $this->response->header("Content-Type", "$mediaType; charset=utf-8");
             $body->write($this->renderFile($renderer));
 
         } else {
 
             $callback = Callback::factory($renderer);
-            $string = $callback->run($this->getCallbackArguments());
+            $string = $callback->run($this->getCallbackArguments($attributes));
 
-            $this->response->header("Content-Type", "$foundContentType; charset=utf-8");
+            $this->response->header("Content-Type", "$mediaType; charset=utf-8");
             $body->write($string);
 
         }

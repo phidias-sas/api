@@ -56,80 +56,156 @@
         }
 
 
-        .message .body {
-            width: 100%;
-            border-collapse: collapse;
+
+        #error {
+            margin: 12px;
+            padding: 24px;
+            background-color: #FFFFB5;
         }
 
-        .message .body thead td {
-            font-size: 0.8em !important;
-            color: #666 !important;
-            vertical-align: bottom;
-            white-space: normal !important;
+        #error p {
+            margin: 0;
+            font-size: 1.4em;
+            color: #333;
+        }
+
+        .message .body {
+            width: 100%;
+            border-collapse: collapse;            
         }
 
         .message .body td {
-            vertical-align: top;
-            color: #222;
-            padding: 6px;
-            padding-right: 16px;
+            padding: 6px 12px;
+        }
+
+        .message .body thead td {
+            font-size: 0.8em;
+            color: #666;
+            vertical-align: bottom;
+            white-space: normal;
         }
 
         .message .body tbody td {
-            border-top: 1px solid #ddd;
-        }
-
-        .message .body tbody .memory {
-            white-space: nowrap;
+            vertical-align: top;
+            color: #222;
+            border-top: 1px solid #ddd;            
         }
 
         .message .body .duration {
-            min-width: 75px;
+            width: 100px;
+            min-width: 100px;
+            max-width: 100px;
         }
 
-        .message .body .memory,
-        .message .body .timer {
-            min-width: 80px;
-            text-align: right;
-            font-size: 0.9em;
+        .message .body > tbody .separator {
+
+            border-left: 6px solid #00b6f0;
+            color: #00b6f0;
+
+            padding: 0;
+            width: 24px;
+            min-width: 24px;
+            max-width: 24px;
+
+            vertical-align: middle;
         }
 
         .message .body .text {
             width: 100%;
-
             white-space: pre-wrap;
         }
 
-        .message .body tbody .text {
-            border-left: 6px solid #00b6f0;
+        .message .body .memory {
+            min-width: 80px;
+            white-space: nowrap;
+            text-align: right;
+            font-size: 0.9em;
+        }
+
+        /* Open/close */
+        .message > .messages {
+            display: none;
+        }
+
+        .message.isOpen > .messages {
+            display: block;
+        }
+
+        .message.isOpen > .body > tbody {
+            background-color: #f4f4f4;
         }
 
 
-        .message.SQL > .body td {
+        .message.isOpenable > .body {
+            cursor: pointer;
+        }
+
+        .message.isOpenable > .body:hover {
+            background-color: #eee;
+        }
+
+        /* toggler */
+        .message > .body .toggler {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+
+        .message > .body .toggler {
+            display: none;
+        }
+
+        .message.isOpenable > .body .toggler {
+            display: block;
+        }
+
+
+        /* Not all messages have duration */
+        .message.noDuration .body .duration {
+            color: #e0e0e0;
+        }
+
+
+        /* Type-specific colors  */
+        .message.type-SQL > .body {
             background-color: #ff8;
         }
 
-        .message.SQL > .body .text {
+        .message.type-SQL > .body .separator {
+            color: #fba01c;
             border-left-color: #fba01c;
         }
 
-        .message.resource > .body  .text {
+        .message.type-resource > .body .separator {
+            color: #98dd00;
             border-left-color: #98dd00;
         }
 
+        .message.type-error > .body {
+            background-color: #FFD5CC;
+        }
+
+        .message.type-error > .body .separator {
+            color: red;
+            border-left-color: red;
+        }
 
         </style>
 
 
         <script type="text/ng-template" id="message.html">
-            <div class="message {{message.type}}" ng-class="message.type">
-                <table class="body">
+            <div class="message type-{{message.type}}" ng-class="{isOpen: message.isOpen, isOpenable: !!message.messages.length, noDuration: !message.duration}">
+
+                <table class="body" ng-click="message.isOpen = !message.isOpen && !!message.messages.length">
                     <tbody>
                         <tr>
                             <td class="duration" ng-bind="message.duration|seconds"></td>
-                            <td class="text" ng-bind="message.text" style="padding-left: {{depth*20 + 10}}px"></td>
+                            <td class="separator">
+                                <div class="toggler" ng-bind="message.isOpen ? '-' : '+'"></div>
+                            </td>
+                            <td class="text" ng-bind="message.text" style="padding-left: {{depth*24 + 12}}px"></td>
                             <td class="memory" ng-bind="message.memory|bytes"></td>
-                            <td class="timer" ng-bind="(message.timestamp - vm.data.timestamp)|seconds"></td>
                         </td>
                     </tbody>
                 </table>
@@ -188,14 +264,17 @@
             vm.play         = play;
             vm.pause        = pause;
 
-            function load(debugId)
+            function load()
             {
-                $http.get(vm.host + '/' + debugId).then( function(response) {
+                $http.get(vm.host + '/' + vm.debugId).then( function(response) {
 
                     vm.error = null;
 
                     var lastModified = response.headers('Last-Modified');
                     if (vm.lastModified != lastModified) {
+
+                        matchOpens(response.data, vm.data);
+
                         vm.data         = response.data;
                         vm.lastModified = lastModified;
                     }
@@ -203,7 +282,6 @@
                 }, function(response) {
                     vm.data  = null;
                     vm.error = response;
-                    vm.pause();
                 });
             }
 
@@ -216,8 +294,8 @@
                 vm.lastModified = null;
 
                 vm.ticker = $interval(function() {
-                    load(vm.debugId);
-                }, 420);
+                    vm.load();
+                }, 1000);
             }
 
             function pause() {
@@ -230,6 +308,30 @@
                 vm.ticker = null;
             }
 
+
+            /*
+            tree1 is coming to replace tree2
+            tree1 wants to mantain the same messages open (the messages in the same position, that is)
+            */
+            function matchOpens(tree1, tree2)
+            {
+                if (tree2 == null) {
+                    return;
+                }
+
+                if (tree2.isOpen) {
+                    tree1.isOpen = true;
+                }
+
+                for (var i = 0; i < tree2.messages.length; i++) {
+                    if (typeof tree1.messages[i] === 'undefined') {
+                        return;
+                    }
+
+                    matchOpens(tree1.messages[i], tree2.messages[i]);
+                }
+            }
+
         }
 
         </script>
@@ -240,17 +342,18 @@
         <main>
             <div id="controls">
                 <h1>Debugger</h1>
-                <span ng-bind="vm.host"></span>/<input type="text" ng-model="vm.debugId" />
+
+                <span ng-bind="vm.host"></span>/<input type="text" ng-model="vm.debugId" ng-disabled="!!vm.ticker" />
+
                 <button ng-click="vm.play()" ng-show="!vm.ticker">go</button>
                 <button ng-click="vm.pause()" ng-show="vm.ticker">pause</button>
             </div>
 
-            <div id="error" ng-show="vm.error">
-                <h1>Error</h1>
-                {{vm.error}}
+            <div id="error" ng-if="vm.error">
+                <p ng-bind="vm.error.data"></p>
             </div>
 
-            <div id="debugger" ng-show="vm.data">
+            <div id="debugger" ng-if="vm.data">
 
                 <table id="summary">
                     <thead>
@@ -268,14 +371,15 @@
                     </tbody>
                 </table>
 
-                <div class="message">
+                <div id="debugger" class="message isOpen">
+
                     <table class="body">
                         <thead>
                             <tr>
                                 <td class="duration">duration [ms]</td>
+                                <td class="separator"></td>
                                 <td class="text"></td>
                                 <td class="memory">memory</td>
-                                <td class="timer">timer [ms]</td>
                             </td>
                         </thead>
                     </table>
@@ -283,8 +387,9 @@
                     <div class="messages">
                         <div ng-include="'message.html'" ng-repeat="message in vm.data.messages" ng-init="depth = 0"></div>
                     </div>
-                </div>
 
+                </div>
+                
             </div>
 
 

@@ -9,13 +9,14 @@ namespace Phidias\Api\Dispatcher;
  */
 class Exception extends \Exception
 {
+    protected static $statusCode = 500;
     protected $originalException;
     private $callback;
 
     public function __construct($originalException, $message = '', $code = 0, Exception $previous = null)
     {
         if (is_a($originalException, 'Phidias\Api\Dispatcher\Callback\ExecutionException')) {
-            $this->originalException = $originalException->getOriginalException();
+            $this->originalException = $originalException->getOriginalException();  //Inxception
             $this->callback          = $originalException->getCallback();
         } else {
             $this->originalException = $originalException;
@@ -29,9 +30,18 @@ class Exception extends \Exception
         return $this->originalException;
     }
 
-    public function filterResponse($response)
+    public function override($response)
     {
-        $response->status(500, get_class($this->originalException));
+        if ( !$response->getStatusCode() ) {
+
+            /*
+            keep in mind:
+            self::$statusCode refers to the value declared in this file (500)
+            get_called_class()::$statusCode  would be the value declared in the class that extends this exception
+            */
+            $className = get_called_class();
+            $response->status($className::$statusCode, get_class($this->originalException));
+        }
 
         if ($this->callback) {
 

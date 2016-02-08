@@ -92,7 +92,7 @@ class Dispatcher
 
         } catch (Dispatcher\Exception $e) {
 
-            $this->response = $e->filterResponse($this->response);
+            $this->response = $e->override($this->response);
 
             try {
 

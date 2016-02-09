@@ -4,12 +4,12 @@ namespace Phidias\Api;
 class Action
 {
     private $parsers;
-    private $authentication;
-    private $authorization;
+    private $authentications;
+    private $authorizations;
     private $validations;
     private $controllers;
     private $filters;
-    private $renderers;
+    private $interpreters;
     private $exceptionHandlers;
 
     private $accessControl;
@@ -17,12 +17,12 @@ class Action
     public function __construct()
     {
         $this->parsers           = [];
-        $this->authentication    = [];
-        $this->authorization     = [];
+        $this->authentications   = [];
+        $this->authorizations    = [];
         $this->validations       = [];
         $this->controllers       = [];
         $this->filters           = [];
-        $this->renderers         = [];
+        $this->interpreters      = [];
         $this->exceptionHandlers = [];
 
         $this->accessControl     = null;
@@ -48,7 +48,7 @@ class Action
 
 
     /* Setters */
-    public function parse($incomingContentType, $parser)
+    public function parser($incomingContentType, $parser)
     {
         $this->parsers[$incomingContentType] = $parser;
         return $this;
@@ -56,13 +56,13 @@ class Action
 
     public function authentication($authentication)
     {
-        $this->authentication[] = $authentication;
+        $this->authentications[] = $authentication;
         return $this;
     }
 
     public function authorization($authorization)
     {
-        $this->authorization[] = $authorization;
+        $this->authorizations[] = $authorization;
         return $this;
     }
 
@@ -84,9 +84,9 @@ class Action
         return $this;
     }
 
-    public function render($contentType, $action)
+    public function interpreter($contentType, $action)
     {
-        $this->renderers[$contentType] = $action;
+        $this->interpreters[$contentType] = $action;
         return $this;
     }
 
@@ -96,7 +96,7 @@ class Action
         return $this;
     }
 
-    public function handle($exceptionClass, $callback)
+    public function handler($exceptionClass, $callback)
     {
         $this->exceptionHandlers[$exceptionClass][] = $callback;
         return $this;
@@ -104,19 +104,25 @@ class Action
 
 
     /* Getters */
+
+    /**
+    * Return a parser (one callback) responsible for
+    * taking the incoming request body as a string
+    * and producing an object (henceforth used as INPUT)
+    */
     public function getParser($contentType)
     {
         return isset($this->parsers[$contentType]) ? $this->parsers[$contentType] : null;
     }
 
-    public function getAuthentication()
+    public function getAuthentications()
     {
-        return $this->authentication;
+        return $this->authentications;
     }
 
-    public function getAuthorization()
+    public function getAuthorizations()
     {
-        return $this->authorization;
+        return $this->authorizations;
     }
 
     public function getValidations()
@@ -129,14 +135,19 @@ class Action
         return $this->controllers;
     }
 
-    public function getRenderer($contentType)
-    {
-        return isset($this->renderers[$contentType]) ? $this->renderers[$contentType] : null;
-    }
-
     public function getFilters()
     {
         return $this->filters;
+    }
+
+    /*
+    * Return an interpreter (one callback) responsible for
+    * taking the current OUTPUT object and producing a 
+    * string in the specificed content type
+    */
+    public function getInterpreter($contentType)
+    {
+        return isset($this->interpreters[$contentType]) ? $this->interpreters[$contentType] : null;
     }
 
     public function getExceptionHandlers($exception)
@@ -161,10 +172,10 @@ class Action
     {
         $action = new Action;
 
-        if (isset($array["parse"])) {
-            foreach ($array["parse"] as $contentType => $callbacks) {
+        if (isset($array["parser"])) {
+            foreach ($array["parser"] as $contentType => $callbacks) {
                 foreach ((array)$callbacks as $callback) {
-                    $action->parse($contentType, $callback);
+                    $action->parser($contentType, $callback);
                 }
             }
         }
@@ -199,18 +210,18 @@ class Action
             }
         }
 
-        if (isset($array["catch"])) {
-            foreach ($array["catch"] as $exceptionClass => $callbacks) {
+        if (isset($array["interpreter"])) {
+            foreach ($array["interpreter"] as $contentType => $callbacks) {
                 foreach ((array)$callbacks as $callback) {
-                    $action->handle($exceptionClass, $callback);
+                    $action->interpreter($contentType, $callbacks);
                 }
             }
         }
 
-        if (isset($array["render"])) {
-            foreach ($array["render"] as $contentType => $callbacks) {
+        if (isset($array["handler"])) {
+            foreach ($array["handler"] as $exceptionClass => $callbacks) {
                 foreach ((array)$callbacks as $callback) {
-                    $action->render($contentType, $callbacks);
+                    $action->handler($exceptionClass, $callback);
                 }
             }
         }

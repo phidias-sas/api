@@ -30,7 +30,7 @@ class Exception extends \Exception
         return $this->originalException;
     }
 
-    public function override($response)
+    public function filterResponse($response)
     {
         if ( !$response->getStatusCode() ) {
 

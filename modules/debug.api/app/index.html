@@ -1,3 +1,11 @@
+<?php /*
+
+This is an HTML representation of a debugger resource
+/debug/{some resource}
+
+It will refresh itself by requesting the resource in JSON format
+
+*/ ?>
 <!doctype html>
 <html ng-app="phidias-debugger">
     <head>
@@ -252,9 +260,8 @@
         {
             var vm          = this;
 
-            vm.host         = $location.absUrl().replace(/\/+$/, "");
+            vm.url          = $location.absUrl().replace(/\/+$/, "");
 
-            vm.debugId      = null;
             vm.lastModified = null;
             vm.data         = null;
             vm.error        = null;
@@ -264,26 +271,11 @@
             vm.play         = play;
             vm.pause        = pause;
 
-            function load()
-            {
-                $http.get(vm.host + '/' + vm.debugId).then( function(response) {
+            // Aaaand GO!
+            play();
 
-                    vm.error = null;
 
-                    var lastModified = response.headers('Last-Modified');
-                    if (vm.lastModified != lastModified) {
-
-                        matchOpens(response.data, vm.data);
-
-                        vm.data         = response.data;
-                        vm.lastModified = lastModified;
-                    }
-
-                }, function(response) {
-                    vm.data  = null;
-                    vm.error = response;
-                });
-            }
+            /////////////////////////////////////////////////////////
 
             function play() {
 
@@ -291,11 +283,34 @@
                     return;
                 }
 
-                vm.lastModified = null;
-
                 vm.ticker = $interval(function() {
                     vm.load();
                 }, 1000);
+
+            }
+
+            function load()
+            {
+                $http.get(vm.url).then( function(response) {
+
+                    vm.error = null;
+
+                    var lastModified = response.headers('Last-Modified');
+                    if (vm.lastModified != lastModified) {
+
+                        matchOpened(response.data, vm.data);
+
+                        vm.data         = response.data;
+                        vm.lastModified = lastModified;
+
+                    } else {
+                        console.log("new:",lastModified, "current:", vm.lastModified);
+                    }
+
+                }, function(response) {
+                    vm.data  = null;
+                    vm.error = response;
+                });
             }
 
             function pause() {
@@ -313,7 +328,7 @@
             tree1 is coming to replace tree2
             tree1 wants to mantain the same messages open (the messages in the same position, that is)
             */
-            function matchOpens(tree1, tree2)
+            function matchOpened(tree1, tree2)
             {
                 if (tree2 == null) {
                     return;
@@ -328,7 +343,7 @@
                         return;
                     }
 
-                    matchOpens(tree1.messages[i], tree2.messages[i]);
+                    matchOpened(tree1.messages[i], tree2.messages[i]);
                 }
             }
 
@@ -341,9 +356,9 @@
 
         <main>
             <div id="controls">
-                <h1>Debugger</h1>
 
-                <span ng-bind="vm.host"></span>/<input type="text" ng-model="vm.debugId" ng-disabled="!!vm.ticker" />
+                <h1>Debugger</h1>
+                <h3 ng-bind="vm.url"></h3>
 
                 <button ng-click="vm.play()" ng-show="!vm.ticker">go</button>
                 <button ng-click="vm.pause()" ng-show="vm.ticker">pause</button>

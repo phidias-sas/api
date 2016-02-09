@@ -50,8 +50,10 @@ class Apache implements EnvironmentInterface
     private static function getUri()
     {
         $uri = (new Uri())
-            ->withPath(($path = filter_input(INPUT_SERVER, "PATH_INFO")) ? $path : "")
-            ->withQuery(($query = filter_input(INPUT_SERVER, "QUERY_STRING")) ? $query : "");
+            ->withScheme(filter_input(INPUT_SERVER, "REQUEST_SCHEME"))
+            ->withHost(filter_input(INPUT_SERVER, "HTTP_HOST"))
+            ->withPath(filter_input(INPUT_SERVER, "PATH_INFO"))
+            ->withQuery(filter_input(INPUT_SERVER, "QUERY_STRING"));
 
         return $uri;
     }

@@ -45,6 +45,9 @@ class Dispatcher
             "query"    => $this->getQueryObject()
         ];
 
+        $this->setAccessControl();
+
+        /* Slide! */
         try {
 
             try {
@@ -83,16 +86,9 @@ class Dispatcher
                 throw new Dispatcher\Exception\FilterException($e);
             }
 
-            // try to render the output
-            try {
-                $this->render();
-            } catch (\Exception $e) {
-                throw new Dispatcher\Exception\RenderException($e);
-            }
-
         } catch (Dispatcher\Exception $e) {
 
-            $this->response = $e->override($this->response);
+            $this->response = $e->filterResponse($this->response);
 
             try {
 
@@ -101,26 +97,22 @@ class Dispatcher
             } catch (\Exception $final) {
 
                 // FUBAR.  An exception was thrown during exception handling
-                $body = new Http\Stream("php://temp", "w");
-                $body->write($final->getMessage());
+                // The exception is now the output, an will be passed throug
+                // the content type interpreter
+                $this->response->status(500, get_class($final));
+                $this->output = $final;
 
-                $this->response
-                    ->status(500, get_class($final))
-                    ->body($body);
-
-            }
-
-            // try to render, but do not allow user callbacks (since at this point an error ocurred)
-            try {
-                $this->render(false);
-            } catch (\Exception $e) {
-                // Exception during rendering  
-                $this->response->status(406, get_class($e));
             }
 
         }
 
-        $this->setAccessControl();
+        // Try to render the output
+        try {
+            $this->render();
+        } catch (\Exception $e) {
+            $renderException = new Dispatcher\Exception\RenderException($e);
+            $this->response = $renderException->filterResponse($response);
+        }
 
         return $this->response;
     }
@@ -201,7 +193,7 @@ class Dispatcher
 
             $arguments = $this->getCallbackArguments($attributes);
 
-            foreach ($action->getAuthentication() as $callback) {
+            foreach ($action->getAuthentications() as $callback) {
                 $retval = Callback::factory($callback)->run($arguments);
             }
 
@@ -217,7 +209,7 @@ class Dispatcher
 
             $arguments = $this->getCallbackArguments($attributes);
 
-            foreach ($action->getAuthorization() as $callback) {
+            foreach ($action->getAuthorizations() as $callback) {
                 $retval = Callback::factory($callback)->run($arguments);
 
                 if ($retval === false) {
@@ -365,7 +357,7 @@ class Dispatcher
                 $attributes = $inchuchu[1];
 
                 foreach ($acceptedMediaTypes as $mediaType) {
-                    $renderer = $action->getRenderer($mediaType);
+                    $renderer = $action->getInterpreter($mediaType);
                     if ($renderer) {
                         break 2;
                     }

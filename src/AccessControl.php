@@ -9,19 +9,26 @@ class AccessControl
     private $allowMethods;
     private $exposeHeaders;
 
+    public function __construct()
+    {
+        $this->allowOrigin      = null;
+        $this->allowCredentials = false;
+        $this->allowHeaders     = [];
+        $this->allowMethods     = [];
+        $this->exposeHeaders    = [];
+    }
 
     public function filter($response, $request = null)
     {
         $origin = ($this->allowOrigin === "*" && $request !== null && $request->hasHeader("origin")) ? $request->getHeader("origin") : $this->allowOrigin;
 
         return $response
-            ->header("Access-Control-Allow-Origin",      $origin)
-            ->header("Access-Control-Allow-Credentials", $this->allowCredentials)
-            ->header("Access-Control-Allow-Headers",     $this->allowHeaders)
-            ->header("Access-Control-Allow-Methods",     $this->allowMethods)
-            ->header("Access-Control-Expose-Headers",    $this->exposeHeaders);
+            ->header("Access-Control-Allow-Origin",      $origin ?: null)
+            ->header("Access-Control-Allow-Credentials", $this->allowCredentials ?: null)
+            ->header("Access-Control-Allow-Headers",     $this->allowHeaders ?: null)
+            ->header("Access-Control-Allow-Methods",     $this->allowMethods ?: null)
+            ->header("Access-Control-Expose-Headers",    $this->exposeHeaders ?: null);
     }
-
 
     public static function factory($data)
     {
@@ -74,21 +81,21 @@ class AccessControl
         return $this;
     }
 
-    public function allowHeaders(array $allowHeaders)
+    public function allowHeaders($allowHeaders)
     {
-        $this->allowHeaders = $allowHeaders;
+        $this->allowHeaders = array_merge($this->allowHeaders, (array)$allowHeaders);
         return $this;
     }
 
-    public function allowMethods(array $allowMethods)
+    public function allowMethods($allowMethods)
     {
-        $this->allowMethods = $allowMethods;
+        $this->allowMethods = array_merge($this->allowMethods, (array)$allowMethods);
         return $this;
     }
 
-    public function exposeHeaders(array $exposeHeaders)
+    public function exposeHeaders($exposeHeaders)
     {
-        $this->exposeHeaders = $exposeHeaders;
+        $this->exposeHeaders = array_merge($this->exposeHeaders, (array)$exposeHeaders);
         return $this;
     }
 
@@ -100,6 +107,17 @@ class AccessControl
             ->allowHeaders(["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"])
             ->allowMethods(["GET", "POST", "PUT", "DELETE", "OPTIONS"])
             ->exposeHeaders(["Location"]);
+    }
+
+    public function combine($incoming)
+    {
+        $this->allowOrigin      = $incoming->allowOrigin ?: $this->allowOrigin;
+        $this->allowCredentials = $this->allowCredentials || $incoming->allowCredentials;
+        $this->allowHeaders     = array_merge($this->allowHeaders, $incoming->allowHeaders);
+        $this->allowMethods     = array_merge($this->allowMethods, $incoming->allowMethods);
+        $this->exposeHeaders    = array_merge($this->exposeHeaders, $incoming->exposeHeaders);
+
+        return $this;
     }
 
 }

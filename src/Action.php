@@ -3,6 +3,9 @@ namespace Phidias\Api;
 
 class Action
 {
+    private $attributes;
+
+    private $accessControl;
     private $parsers;
     private $authentications;
     private $authorizations;
@@ -12,10 +15,11 @@ class Action
     private $interpreters;
     private $exceptionHandlers;
 
-    private $accessControl;
-
-    public function __construct()
+    public function __construct($attributes = [])
     {
+        $this->attributes        = $attributes;
+
+        $this->accessControl     = null;
         $this->parsers           = [];
         $this->authentications   = [];
         $this->authorizations    = [];
@@ -24,30 +28,32 @@ class Action
         $this->filters           = [];
         $this->interpreters      = [];
         $this->exceptionHandlers = [];
-
-        $this->accessControl     = null;
     }
 
-
-    public static function factory($data)
+    public static function factory($data, $attributes = [])
     {
         if (!$data) {
-            return new Action;
+            return new Action($attributes);
         }
 
         if (is_array($data)) {
-            return self::fromArray($data);
+            return self::fromArray($data, $attributes);
         }
 
         if (is_a($data, "Phidias\Api\Action")) {
-            return $data;
+            return $data->attributes($attributes);
         }
 
-        return (new Action)->controller($data);
+        return (new Action($attributes))->controller($data);
     }
 
-
     /* Setters */
+    public function attributes($attributes)
+    {
+        $this->attributes = $attributes;
+        return $this;
+    }
+
     public function parser($incomingContentType, $parser)
     {
         $this->parsers[$incomingContentType] = $parser;
@@ -104,6 +110,10 @@ class Action
 
 
     /* Getters */
+    public function getAttributes()
+    {
+        return $this->attributes;
+    }
 
     /**
     * Return a parser (one callback) responsible for
@@ -142,7 +152,7 @@ class Action
 
     /*
     * Return an interpreter (one callback) responsible for
-    * taking the current OUTPUT object and producing a 
+    * taking the current OUTPUT object and producing a
     * string in the specificed content type
     */
     public function getInterpreter($contentType)
@@ -168,9 +178,9 @@ class Action
         return $this->accessControl ? AccessControl::factory($this->accessControl) : null;
     }
 
-    private static function fromArray($array)
+    private static function fromArray($array, $attributes = [])
     {
-        $action = new Action;
+        $action = new Action($attributes);
 
         if (isset($array["parser"])) {
             foreach ($array["parser"] as $contentType => $callbacks) {

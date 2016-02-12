@@ -33,9 +33,8 @@ class Exception extends \Exception
     public function filterResponse($response)
     {
         if ( !$response->getStatusCode() ) {
-
             /*
-            keep in mind:
+            keep in mind: 
             self::$statusCode refers to the value declared in this file (500)
             get_called_class()::$statusCode  would be the value declared in the class that extends this exception
             */
@@ -44,15 +43,12 @@ class Exception extends \Exception
         }
 
         if ($this->callback) {
-
             $closure = $this->callback->getCallable();
-
             if (is_array($closure)) {
                 $reflection = new \ReflectionMethod($closure[0], $closure[1]);
             } else {
                 $reflection = new \ReflectionFunction($closure);
             }
-
             $response->header("X-Phidias-Exception-Filename", $reflection->getFilename() . ' Line: ' . $reflection->getStartLine());
         }
 

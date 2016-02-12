@@ -36,10 +36,7 @@ class Server
             return;
         }
 
-        $resource = Resource::factory($resource);
-
         self::getIndex()->store($path, $resource);
-
         return $resource;
     }
 
@@ -77,17 +74,6 @@ class Server
     }
 
 
-
-    private static function getIndex()
-    {
-        if (self::$index === null) {
-            self::$index = new Index;
-        }
-
-        return self::$index;
-    }
-
-
     /**
      * Import resources and templates from the given
      * module folder
@@ -109,14 +95,14 @@ class Server
     {
         self::initialize();
 
-        $method = strtoupper($request->getMethod());
-        $path   = urldecode($request->getUri()->getPath());
-
+        $method = $request->getMethod();
+        $path   = $request->getUri()->getPath();
         Debug::startBlock("$method $path", "resource");
 
         try {
 
-            $dispatcher = self::getDispatcher($request);
+            $resource   = self::getResource($path);
+            $dispatcher = $resource->getDispatcher($method);
             $response   = $dispatcher->dispatch($request);
 
         } catch (Server\Exception\ResourceNotFound $e) {
@@ -125,7 +111,13 @@ class Server
 
         } catch (Server\Exception\MethodNotImplemented $e) {
 
-            $response = (new Response(405))->withHeader("Allowed", $e->getImplementedMethods());
+            if ($method == "options") {
+                $response      = new Response(200);
+                $accessControl = $resource->getAccessControl()->allowMethods($e->getImplementedMethods());
+                $response      = $accessControl->filter($response, $request);
+            } else {
+                $response = (new Response(405))->withHeader("Allowed", $e->getImplementedMethods());
+            }
 
         }
 
@@ -134,72 +126,35 @@ class Server
         return $response;
     }
 
-
-    /**
-     * Look in the index for all actions matching the request
-     * and create a new dispatcher from them.
-     */
-    private static function getDispatcher($request)
+    public static function getResource($path)
     {
-        $dispatcher = new Dispatcher;
-
-        $method  = $request->getMethod();
-        $url     = urldecode($request->getUri()->getPath());
-
-        $results = self::getIndex()->find($url);
-
+        $results = self::getIndex()->find($path);
         if (!$results) {
             throw new Server\Exception\ResourceNotFound;
         }
 
-        // Abstract resources should only be included alongside NON abstract resources
-        $nonAbstractMethodsArePresent = false;
-
+        $retval = null;
         foreach ($results as $result) {
-            if (!$result->data->getIsAbstract()) {
-                $nonAbstractMethodsArePresent = true;
-                break;
-            }
+            $resource = Resource::factory($result->data);
+            $resource->setAttributes($result->attributes);
+            $retval = $retval ? $retval->merge($resource) : $resource;
         }
 
-        if (!$nonAbstractMethodsArePresent) {
+        if ($retval->getIsAbstract()) {
             throw new Server\Exception\ResourceNotFound;
         }
 
-
-        $foundMethod        = false;
-        $implementedMethods = [];
-
-        foreach ($results as $result) {
-
-            $resource           = $result->data;
-            $attributes         = $result->attributes;
-            $implementedMethods = array_merge($implementedMethods, $resource->getImplementedMethods());
-
-
-            foreach ($resource->getActions($method) as $methodAction) {
-
-                $action = Action::factory($methodAction);
-
-                if (count($action->getControllers())) {
-                    $foundMethod = true;
-                }
-
-                $dispatcher->add($action, $attributes);
-            }
-
-        }
-
-
-        if (!$foundMethod) {
-            throw new Server\Exception\MethodNotImplemented($implementedMethods);
-        }
-
-        return $dispatcher;
+        return $retval;
     }
 
+    private static function getIndex()
+    {
+        if (self::$index === null) {
+            self::$index = new Index;
+        }
 
-
+        return self::$index;
+    }
 
     private static function initialize()
     {

@@ -40,16 +40,15 @@ class Resource
         return $resource;
     }
 
-    public function __construct($dispatchers = null)
+    public function __construct()
     {
         $this->methodActions = [];
         $this->isAbstract    = false;
     }
 
-    public function on($methodName, $action)
+    public function on($method, $action)
     {
-        $this->methodActions[strtolower($methodName)][] = $action;
-
+        $this->methodActions[strtolower($method)][] = Action::factory($action);
         return $this;
     }
 
@@ -64,9 +63,9 @@ class Resource
         return $this->isAbstract;
     }
 
-    public function hasMethod($methodName)
+    public function hasMethod($method)
     {
-        return isset($this->methodActions["any"]) || isset($this->methodActions[trim(strtolower($methodName))]);
+        return isset($this->methodActions["any"]) || isset($this->methodActions[strtolower($method)]);
     }
 
     public function getImplementedMethods()
@@ -82,19 +81,69 @@ class Resource
         return $retval;
     }
 
-    public function getActions($methodName)
+    public function getActions($method)
     {
+        $method = strtolower($method);
         $retval = [];
+
+        if (isset($this->methodActions[$method])) {
+            $retval = array_merge($retval, $this->methodActions[$method]);
+        }
 
         if (isset($this->methodActions["any"])) {
             $retval = array_merge($retval, $this->methodActions["any"]);
         }
 
-        if (isset($this->methodActions[$methodName])) {
-            $retval = array_merge($retval, $this->methodActions[$methodName]);
+        return $retval;
+    }
+
+    public function merge($resource)
+    {
+        $this->isAbstract = $this->isAbstract && $resource->isAbstract;
+        foreach ($resource->methodActions as $method => $actions) {
+            $this->methodActions[$method] = isset($this->methodActions[$method]) ? array_merge($this->methodActions[$method], $actions) : $actions;
+        }
+        return $this;
+    }
+
+    public function setAttributes($attributes)
+    {
+        foreach ($this->methodActions as $method => &$actions) {
+            foreach ($actions as &$action) {
+                $action = Action::factory($action, $attributes);
+            }
+        }
+        return $this;
+    }
+
+    public function getDispatcher($method)
+    {
+        $foundControllers = false;
+
+        $dispatcher = new Dispatcher;
+        foreach ($this->getActions($method) as $action) {
+            $foundControllers = $foundControllers || count($action->getControllers());
+            $dispatcher->add($action);
         }
 
-        return $retval;
+        if (!$foundControllers) {
+            throw new Server\Exception\MethodNotImplemented($this->getImplementedMethods());
+        }
+
+        return $dispatcher;
+    }
+
+    public function getAccessControl($method = null)
+    {
+        $control = new AccessControl;
+
+        foreach ($this->getActions($method) as $action) {
+            if ($customControl = $action->getAccessControl()) {
+                $control->combine($customControl);
+            }
+        }
+
+        return $control;
     }
 
 }

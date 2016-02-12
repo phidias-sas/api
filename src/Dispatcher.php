@@ -25,9 +25,16 @@ class Dispatcher
 
     private $callbackArguments; // the arguments to be sent to all callbacks
 
-    public function add(Action $action, $attributes = null)
+    public function __construct($actions = [])
     {
-        $this->queue[] = [$action, $attributes];
+        foreach ($actions as $action) {
+            $this->add($action);
+        }
+    }
+
+    public function add(Action $action)
+    {
+        $this->queue[] = $action;
     }
 
     public function dispatch(\Psr\Http\Message\ServerRequestInterface $request)
@@ -108,7 +115,7 @@ class Dispatcher
 
         // Try to render the output
         try {
-            $this->render();
+            $this->renderOutput();
         } catch (\Exception $e) {
             $renderException = new Dispatcher\Exception\RenderException($e);
             $this->response = $renderException->filterResponse($response);
@@ -117,13 +124,14 @@ class Dispatcher
         return $this->response;
     }
 
-    private function getCallbackArguments($attributes = null)
+    private function getCallbackArguments($action = null)
     {
-        if (!$attributes) {
+        if (!$action) {
             return $this->callbackArguments;
         }
 
-        $retval = array_merge($this->callbackArguments, $attributes);
+        $attributes        = $action->getAttributes();
+        $retval            = array_merge($this->callbackArguments, $attributes);
         $retval["request"] = $retval["request"]->withAttributes($attributes);
 
         return $retval;
@@ -138,29 +146,22 @@ class Dispatcher
 
     private function runInputParser()
     {
-        $parser = null;
         $incomingMediaType = $this->request->getHeaderLine("content-type");
+        $parser            = null;
 
-        foreach ($this->queue as $inchuchu) {
-
-            $action = $inchuchu[0];
-
+        foreach ($this->queue as $action) {
             $parser = $action->getParser($incomingMediaType);
             if ($parser) {
                 break;
             }
-
         }
 
         if ($parser) {
-
             $arguments          = $this->getCallbackArguments();
             $arguments["input"] = (string)$this->request->getBody();
-
-            $this->input = Callback::factory($parser)->run($arguments);
+            $this->input        = Callback::factory($parser)->run($arguments);
             return;
         }
-
 
         // Default input parser:
         // pass trought _POST if present, otherwise attempt to decode JSON
@@ -178,59 +179,39 @@ class Dispatcher
 
         $inputString = (string)$this->request->getBody();
         $inputJson   = json_decode($inputString);
-
         $this->input = $inputJson ?: $inputString;
-
     }
-
 
     private function runAuthentication()
     {
-        foreach ($this->queue as $inchuchu) {
-
-            $action     = $inchuchu[0];
-            $attributes = $inchuchu[1];
-
-            $arguments = $this->getCallbackArguments($attributes);
-
+        foreach ($this->queue as $action) {
+            $arguments = $this->getCallbackArguments($action);
             foreach ($action->getAuthentications() as $callback) {
                 $retval = Callback::factory($callback)->run($arguments);
             }
-
         }
     }
 
     private function runAuthorization()
     {
-        foreach ($this->queue as $inchuchu) {
-
-            $action     = $inchuchu[0];
-            $attributes = $inchuchu[1];
-
-            $arguments = $this->getCallbackArguments($attributes);
-
+        foreach ($this->queue as $action) {
+            $arguments = $this->getCallbackArguments($action);
+            
             foreach ($action->getAuthorizations() as $callback) {
                 $retval = Callback::factory($callback)->run($arguments);
-
                 if ($retval === false) {
                     throw new \Exception("interruption");
                 }
             }
-
         }
     }
 
     private function runValidation()
     {
-        foreach ($this->queue as $inchuchu) {
-
-            $action     = $inchuchu[0];
-            $attributes = $inchuchu[1];
-
-            $arguments = $this->getCallbackArguments($attributes);
+        foreach ($this->queue as $action) {
+            $arguments = $this->getCallbackArguments($action);
 
             foreach ($action->getValidations() as $callback) {
-
                 $retval = Callback::factory($callback)->run($arguments);
 
                 // if false is returned, throw an exception
@@ -244,21 +225,15 @@ class Dispatcher
                     throw new \Exception("validation errors");
                 }
             }
-
         }
     }
 
     private function runControllers()
     {
-        foreach ($this->queue as $inchuchu) {
-
-            $action     = $inchuchu[0];
-            $attributes = $inchuchu[1];
-
-            $arguments = $this->getCallbackArguments($attributes);
+        foreach ($this->queue as $action) {
+            $arguments = $this->getCallbackArguments($action);
 
             foreach ($action->getControllers() as $callback) {
-
                 $result = Callback::factory($callback)->run($arguments);
 
                 if ($result instanceOf \Psr\Http\Message\ResponseInterface) {
@@ -266,24 +241,16 @@ class Dispatcher
                 } elseif ($result !== null) {
                     $this->output = $result;
                 }
-
             }
-
         }
-
     }
 
     private function runFilters()
     {
-        foreach ($this->queue as $inchuchu) {
-
-            $action     = $inchuchu[0];
-            $attributes = $inchuchu[1];
-
-            $arguments = $this->getCallbackArguments($attributes);
+        foreach ($this->queue as $action) {
+            $arguments = $this->getCallbackArguments($action);
 
             foreach ($action->getFilters() as $callback) {
-
                 $result = Callback::factory($callback)->run($arguments);
 
                 if ($result instanceOf \Psr\Http\Message\ResponseInterface) {
@@ -293,72 +260,46 @@ class Dispatcher
                 }
 
             }
-
         }
-
     }
 
     private function runExceptionHandlers($exception)
     {
-        foreach ($this->queue as $inchuchu) {
-
-            $action     = $inchuchu[0];
-            $attributes = $inchuchu[1];
-
-            $arguments              = $this->getCallbackArguments($attributes);
+        foreach ($this->queue as $action) {
+            $arguments              = $this->getCallbackArguments($action);
             $arguments["exception"] = $exception;
 
-
             foreach ($action->getExceptionHandlers($exception) as $callbacks) {
-
                 foreach ($callbacks as $callback) {
                     $result = Callback::factory($callback)->run($arguments);
-
                     if ($result instanceOf \Psr\Http\Message\ResponseInterface) {
                         $this->response = $result;
                     }
                 }
-
-            }
-
-        }
-    }
-
-    private function setAccessControl()
-    {
-        foreach ($this->queue as $inchuchu) {
-            $action = $inchuchu[0];
-            if ($control = $action->getAccessControl()) {
-                $this->response = $control->filter($this->response, $this->request);
             }
         }
     }
 
-    private function render($allowCustomCallbacks = true)
+    private function renderOutput($allowCustomCallbacks = true)
     {
         // If the response already has data, ignore
         if (!!$this->response->getBody()) {
             return;
         }
 
-
         Debugger::startBlock("rendering response data");
 
         $acceptedMediaTypes   = $this->getAcceptedMediaTypes($this->request);
         $acceptedMediaTypes[] = "application/json";
 
-        $renderer  = null;
-        $mediaType = null;
+        $interpreter = null;
+        $mediaType   = null;
 
         if ($allowCustomCallbacks) {
-            foreach ($this->queue as $inchuchu) {
-
-                $action     = $inchuchu[0];
-                $attributes = $inchuchu[1];
-
+            foreach ($this->queue as $action) {
                 foreach ($acceptedMediaTypes as $mediaType) {
-                    $renderer = $action->getInterpreter($mediaType);
-                    if ($renderer) {
+                    $interpreter = $action->getInterpreter($mediaType);
+                    if ($interpreter) {
                         break 2;
                     }
                 }
@@ -368,21 +309,21 @@ class Dispatcher
         $body = new Http\Stream("php://temp", "w");
         $this->response->body($body);
 
-        // No renderer: write output as JSON
-        if (!$renderer) {
+        // No interpreter: write output as JSON
+        if (!$interpreter) {
 
             $this->response->header("Content-Type", "application/json; charset=utf-8");
             $body->write(!empty($this->output) ? json_encode($this->output, JSON_PRETTY_PRINT) : null);
 
-        } elseif (is_string($renderer) && file_exists($renderer)) {
+        } elseif (is_string($interpreter) && file_exists($interpreter)) {
 
             $this->response->header("Content-Type", "$mediaType; charset=utf-8");
-            $body->write($this->renderFile($renderer));
+            $body->write($this->renderFile($interpreter));
 
         } else {
 
-            $callback = Callback::factory($renderer);
-            $string = $callback->run($this->getCallbackArguments($attributes));
+            $callback = Callback::factory($interpreter);
+            $string = $callback->run($this->getCallbackArguments($action));
 
             $this->response->header("Content-Type", "$mediaType; charset=utf-8");
             $body->write($string);
@@ -390,7 +331,6 @@ class Dispatcher
         }
 
         Debugger::endBlock();
-
     }
 
     private function renderFile($filename)
@@ -407,6 +347,18 @@ class Dispatcher
         return $stdout;
     }
 
+    private function setAccessControl()
+    {
+        $control = new AccessControl;
+
+        foreach ($this->queue as $action) {
+            if ($customControl = $action->getAccessControl()) {
+                $control->combine($customControl);
+            }
+        }
+
+        $this->response = $control->filter($this->response, $this->request);
+    }
 
     private function getAcceptedMediaTypes($request)
     {

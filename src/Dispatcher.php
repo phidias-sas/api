@@ -22,6 +22,7 @@ class Dispatcher
     private $response;
     private $input;
     private $output;
+    private $authentication;
 
     private $callbackArguments; // the arguments to be sent to all callbacks
 
@@ -39,17 +40,19 @@ class Dispatcher
 
     public function dispatch(\Psr\Http\Message\ServerRequestInterface $request)
     {
-        $this->request  = $request;
-        $this->response = new Http\Response;
-        $this->input    = null;
-        $this->output   = null;
+        $this->request        = $request;
+        $this->response       = new Http\Response;
+        $this->input          = null;
+        $this->output         = null;
+        $this->authentication = null;
 
         $this->callbackArguments = [
-            "request"  => &$this->request,
-            "response" => &$this->response,
-            "input"    => &$this->input,
-            "output"   => &$this->output,
-            "query"    => $this->getQueryObject()
+            "request"        => &$this->request,
+            "response"       => &$this->response,
+            "input"          => &$this->input,
+            "output"         => &$this->output,
+            "authentication" => &$this->authentication,
+            "query"          => $this->getQueryObject()
         ];
 
         $this->setAccessControl();
@@ -187,7 +190,14 @@ class Dispatcher
         foreach ($this->queue as $action) {
             $arguments = $this->getCallbackArguments($action);
             foreach ($action->getAuthentications() as $callback) {
-                $retval = Callback::factory($callback)->run($arguments);
+
+                $result = Callback::factory($callback)->run($arguments);
+
+                if ($result instanceOf \Psr\Http\Message\ResponseInterface) {
+                    $this->response = $result;
+                } elseif ($result !== null) {
+                    $this->authentication = $result;
+                }
             }
         }
     }
@@ -196,11 +206,19 @@ class Dispatcher
     {
         foreach ($this->queue as $action) {
             $arguments = $this->getCallbackArguments($action);
-            
+
             foreach ($action->getAuthorizations() as $callback) {
                 $retval = Callback::factory($callback)->run($arguments);
+
+                // if false is returned, thrown an authorization exception
                 if ($retval === false) {
-                    throw new \Exception("interruption");
+                    throw new \Exception("authorization failed");
+                }
+
+                // if data is returned, use it as the output
+                if (!is_bool($retval) && $retval) {
+                    $this->output = $retval;
+                    throw new \Exception("authorization errors");
                 }
             }
         }
@@ -214,7 +232,7 @@ class Dispatcher
             foreach ($action->getValidations() as $callback) {
                 $retval = Callback::factory($callback)->run($arguments);
 
-                // if false is returned, throw an exception
+                // if false is returned, throw a validation exception
                 if ($retval === false) {
                     throw new \Exception("validation failed");
                 }

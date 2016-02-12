@@ -4,6 +4,11 @@ use Phidias\Utilities\Debugger;
 use Phidias\Api\Environment;
 
 $request = Environment::getServerRequest();
+
+if (!$request) {
+	return;
+}
+
 $debugId = $request->getHeaderLine("X-Phidias-Debug");
 
 if ($debugId) {

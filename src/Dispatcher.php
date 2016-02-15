@@ -62,6 +62,7 @@ class Dispatcher
 
             try {
                 $this->runInputParser();
+                $this->request = $this->request->withParsedBody($this->input);
             } catch (\Exception $e) {
                 throw new Dispatcher\Exception\ParseException($e);
             }

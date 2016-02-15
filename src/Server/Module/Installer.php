@@ -33,6 +33,11 @@ class Installer
             return;
         }
 
+        $parts       = explode("/", trim($this->path, "/"));
+        $packageName = array_pop($parts);
+        $vendorName  = array_pop($parts);
+        $moduleName  = ($vendorName ? "$vendorName/" : '').$packageName;
+        echo "\n\n\nInstalling module \"{$moduleName}\"\n\n$installationFile\n";
         include $installationFile;
     }
 
@@ -60,15 +65,18 @@ class Installer
         }
 
         if (!$targetEntities) {
-            echo "No entities found";
+            echo "No entities found (no tables to create)";
             return;
         }
 
-        echo "updating database:\n\n";
+        $databaseSettings = Db::getCredentials($identifier);
+        $databaseString   = $databaseSettings["username"].($databaseSettings["password"] ? ':****' : '').'@'.$databaseSettings["host"].'/'.$databaseSettings["database"];
+        echo "Updating database $databaseString\n";
 
         Db::create($identifier);
 
         foreach ($targetEntities as $entityClassName) {
+            echo "    pathing table for $entityClassName\n";
             try {
                 $entityClassName::getSchema()->patch();
             } catch (\Exception $e) {
@@ -78,6 +86,7 @@ class Installer
 
         foreach ($targetEntities as $entityClassName) {
             try {
+                echo "    checking triggers for $entityClassName\n";
                 $entityClassName::getSchema()->createTriggers();
             } catch (\Exception $e) {
                 echo $e->getMessage();

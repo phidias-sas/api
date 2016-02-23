@@ -15,7 +15,7 @@ class Apache implements EnvironmentInterface
             ->withMethod(self::getMethod())
             ->withUri(self::getUri())
             ->withQueryParams(self::getQueryParams())
-            ->withBody(new Stream("php://input"))
+            ->withBody(self::getBodyStream())
             ->withUploadedFiles(self::getUploadedFiles());
 
         foreach (self::getHeaders() as $headerName => $headerValue) {
@@ -66,6 +66,16 @@ class Apache implements EnvironmentInterface
     private static function getHeaders()
     {
         return getallheaders();
+    }
+
+    private static function getBodyStream()
+    {
+        $rawInput   = fopen('php://input', 'r');
+        $tempStream = fopen('php://temp', 'r+');
+        stream_copy_to_stream($rawInput, $tempStream);
+        rewind($tempStream);
+
+        return new Stream($tempStream);
     }
 
     private static function parseBody()

@@ -332,7 +332,7 @@ class Dispatcher
         if (!$interpreter) {
 
             $this->response->header("Content-Type", "application/json; charset=utf-8");
-            $body->write(!empty($this->output) ? json_encode($this->output, JSON_PRETTY_PRINT) : null);
+            $body->write(json_encode($this->output, JSON_PRETTY_PRINT));
 
         } elseif (is_string($interpreter) && file_exists($interpreter)) {
 

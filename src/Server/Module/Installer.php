@@ -76,7 +76,7 @@ class Installer
         Db::create($identifier);
 
         foreach ($targetEntities as $entityClassName) {
-            echo "    pathing table for $entityClassName\n";
+            echo "    patching table for $entityClassName\n";
             try {
                 $entityClassName::getSchema()->patch();
             } catch (\Exception $e) {

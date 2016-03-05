@@ -293,6 +293,8 @@ class Dispatcher
                     $result = Callback::factory($callback)->run($arguments);
                     if ($result instanceOf \Psr\Http\Message\ResponseInterface) {
                         $this->response = $result;
+                    } elseif ($result !== null) {
+                        $this->output = $result;
                     }
                 }
             }

@@ -168,16 +168,17 @@ class Dispatcher
         }
 
         // Default input parser:
-        // pass trought _POST if present, otherwise attempt to decode JSON
 
+        // Use request's parsedBody if present
         $parsedBody = $this->request->getParsedBody();
         if ($parsedBody) {
             $this->input = $parsedBody;
             return;
         }
 
+        // Interpret incoming _POST as OBJECT
         if (isset($_POST) && !empty($_POST)) {
-            $this->input = $_POST;
+            $this->input = (object)$_POST;
             return;
         }
 
@@ -209,18 +210,22 @@ class Dispatcher
             $arguments = $this->getCallbackArguments($action);
 
             foreach ($action->getAuthorizations() as $callback) {
+
                 $retval = Callback::factory($callback)->run($arguments);
 
-                // if false is returned, thrown an authorization exception
-                if ($retval === false) {
-                    throw new \Exception("authorization failed");
+                /* no errors returned from the callback */
+                if ($retval === true || $retval === null) {
+                    continue;
                 }
 
-                // if data is returned, use it as the output
-                if (!is_bool($retval) && $retval) {
+                /* If something other than false is returned, assume an error happened
+                   and use the returned value as the output
+                */
+                if ($retval !== false) {
                     $this->output = $retval;
-                    throw new \Exception("authorization errors");
                 }
+
+                throw new \Exception("authorization failed");
             }
         }
     }
@@ -293,7 +298,7 @@ class Dispatcher
                     $result = Callback::factory($callback)->run($arguments);
                     if ($result instanceOf \Psr\Http\Message\ResponseInterface) {
                         $this->response = $result;
-                    } elseif ($result !== null) {
+                    } elseif ($result !== null && $this->output === null) {
                         $this->output = $result;
                     }
                 }
@@ -330,18 +335,16 @@ class Dispatcher
         $body = new Http\Stream("php://temp", "w");
         $this->response->body($body);
 
-        // No interpreter: write output as JSON
-        if (!$interpreter) {
+        // interpreter can be:
 
-            $this->response->header("Content-Type", "application/json; charset=utf-8");
-            $body->write(json_encode($this->output, JSON_PRETTY_PRINT));
-
-        } elseif (is_string($interpreter) && file_exists($interpreter)) {
+        // A PHP file, which gets included
+        if (is_string($interpreter) && file_exists($interpreter)) {
 
             $this->response->header("Content-Type", "$mediaType; charset=utf-8");
             $body->write($this->renderFile($interpreter));
 
-        } else {
+        // A valid callback
+        } elseif ($interpreter) {
 
             $callback = Callback::factory($interpreter);
             $string = $callback->run($this->getCallbackArguments($action));
@@ -349,7 +352,14 @@ class Dispatcher
             $this->response->header("Content-Type", "$mediaType; charset=utf-8");
             $body->write($string);
 
+        // No interpreter: write output as JSON (if any)
+        } elseif ($this->output !== null) {
+
+            $this->response->header("Content-Type", "application/json; charset=utf-8");
+            $body->write(json_encode($this->output, JSON_PRETTY_PRINT));
+
         }
+
 
         Debugger::endBlock();
     }

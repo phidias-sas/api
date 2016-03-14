@@ -53,7 +53,7 @@ class Apache implements EnvironmentInterface
             ->withScheme(filter_input(INPUT_SERVER, "REQUEST_SCHEME"))
             ->withHost(filter_input(INPUT_SERVER, "HTTP_HOST"))
             ->withPath(filter_input(INPUT_SERVER, "PATH_INFO") ?: '/')
-            ->withQuery(filter_input(INPUT_SERVER, "QUERY_STRING"));
+            ->withQuery(filter_input(INPUT_SERVER, "QUERY_STRING") ?: '');
 
         return $uri;
     }

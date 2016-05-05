@@ -15,7 +15,7 @@ class Server
             trigger_error("cannot load: '$moduleFolder' is not a valid folder", E_USER_ERROR);
         }
 
-        self::$modules[] = "/".trim($path, "/")."/";
+        self::$modules[] = rtrim($path, "/")."/";
     }
 
     public static function execute()

@@ -26,7 +26,7 @@ class Module
             trigger_error("cannot load: '$moduleFolder' is not a valid folder", E_USER_ERROR);
         }
 
-        $path = trim($path, "/");
+        $path = rtrim($path, "/");
         self::loadConfiguration($path);
         self::$loadedModules[] = $path;
     }

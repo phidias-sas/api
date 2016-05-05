@@ -26,9 +26,9 @@ class Module
             trigger_error("cannot load: '$moduleFolder' is not a valid folder", E_USER_ERROR);
         }
 
+        $path = trim($path, "/");
         self::loadConfiguration($path);
-
-        self::$loadedModules[] = "/".trim($path, "/");
+        self::$loadedModules[] = $path;
     }
 
     public static function initialize()
@@ -39,7 +39,7 @@ class Module
 
         foreach (self::$loadedModules as $path) {
             self::loadResources($path);
-        }        
+        }
     }
 
     public static function getLoadedModules()
@@ -120,7 +120,7 @@ class Module
     /**
      * Look for the given file in all modules.
      * Returns an array of all matching files, ordered showing newest modules first
-     * 
+     *
      */
     public static function getFile($filename)
     {

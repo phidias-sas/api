@@ -71,26 +71,17 @@ class Module
 
 
 
-    public static function install($modules)
+    public static function install()
     {
-        /* Step 1: Include all configuration */
-        foreach ($modules as $path) {
-            foreach (self::getFileList($path."/".self::DIR_CONFIGURATION) as $file) {
-                Configuration::set(include $file);
-            }
+        /* Run initialization */
+        foreach (self::$loadedModules as $path) {
+            self::runInitialization($path);
         }
 
-        /* Step 2: Run all modules initialization */
-        foreach ($modules as $path) {
-            foreach (self::getFileList($path."/".self::DIR_INITIALIZATION) as $file) {
-                include $file;
-            }
-        }
-
-        /* Step 3: Run installation scripts */
+        /* Run installation scripts */
         $installers = [];
 
-        foreach ($modules as $path) {
+        foreach (self::$loadedModules as $path) {
             $installer = new Installer($path);
             $installer->install();
 

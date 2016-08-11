@@ -5,17 +5,9 @@ use Phidias\Api\Server\Module;
 
 class Server
 {
-    private static $modules = [];
-
     public static function import($moduleFolder)
     {
-        $path = realpath($moduleFolder);
-
-        if (!$path) {
-            trigger_error("cannot load: '$moduleFolder' is not a valid folder", E_USER_ERROR);
-        }
-
-        self::$modules[] = rtrim($path, "/")."/";
+        Module::load($moduleFolder);
     }
 
     public static function execute()
@@ -30,7 +22,7 @@ class Server
 
     private static function install()
     {
-        Module::install(self::$modules);
+        Module::install();
     }
 
     public static function onInitialize()

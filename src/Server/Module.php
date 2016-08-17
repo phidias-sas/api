@@ -70,18 +70,44 @@ class Module
     }
 
 
-
-    public static function install()
+    /**
+     * Standalone installation function.  Installs given modules with given configuration
+     *
+     */
+    public static function install(array $modules = null, array $configuration = [])
     {
-        /* Run initialization */
-        foreach (self::$loadedModules as $path) {
+        if ($modules == null) {
+            $modules = self::getLoadedModules();
+        }
+
+        $missingModules = [];
+
+        foreach ($modules as $path) {
+            if (!is_dir($path)) {
+                $missingModules[] = $path;
+            }
+        }
+
+        if ($missingModules) {
+            $error = "The following modules are missing:\n";
+            $error .= implode("\n", $missingModules);
+            trigger_error($error, E_USER_ERROR);
+        }
+
+        foreach ($modules as $path) {
+            self::loadConfiguration($path);
+        }
+
+        Configuration::set($configuration);
+
+        foreach ($modules as $path) {
             self::runInitialization($path);
         }
 
         /* Run installation scripts */
         $installers = [];
 
-        foreach (self::$loadedModules as $path) {
+        foreach ($modules as $path) {
             $installer = new Installer($path);
             $installer->install();
 

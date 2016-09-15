@@ -75,6 +75,27 @@ class Server
 
 
     /**
+    * Asynchronously invoke the given URL
+    *
+    */
+    public static function async($method, $url)
+    {
+        $baseUrl = str_replace($_SERVER["PATH_INFO"], "", $_SERVER["REDIRECT_URL"]);
+        $method  = strtoupper($method);
+
+        $ch = curl_init();
+
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST,  $method);
+        curl_setopt($ch, CURLOPT_URL,            $baseUrl.$url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER,     getallheaders());
+        curl_setopt($ch, CURLOPT_TIMEOUT_MS,     1);
+
+        curl_exec($ch);
+        curl_close($ch);
+    }
+
+
+    /**
      * Import resources and templates from the given
      * module folder
      */

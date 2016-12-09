@@ -182,9 +182,10 @@ class Dispatcher
             return;
         }
 
+        // Treat input as valid JSON, otherwise use incoming string as input
         $inputString = (string)$this->request->getBody();
         $inputJson   = json_decode($inputString);
-        $this->input = $inputJson ?: $inputString;
+        $this->input = json_last_error() == JSON_ERROR_NONE ? $inputJson : $inputString;
     }
 
     private function runAuthentication()

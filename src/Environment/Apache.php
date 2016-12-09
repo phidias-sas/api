@@ -78,6 +78,7 @@ class Apache implements EnvironmentInterface
         return new Stream($tempStream);
     }
 
+    // THIS FUNCTION IS DEPRECATED AND REMAINS HERE ONLY TO HIGHLIGHT THE WEIRD BUG SHOWN INSIDE
     private static function parseBody()
     {
         if (isset($_POST) && !empty($_POST)) {

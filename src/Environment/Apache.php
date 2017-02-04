@@ -35,7 +35,7 @@ class Apache implements EnvironmentInterface
         header("HTTP/{$protocolVersion} {$statusCode} {$reasonPhrase}");
 
         foreach ($response->getHeaders() as $headerName => $headerValues) {
-            header($headerName . ": " . implode(", ", $headerValues));
+            header(str_replace("\n", "", $headerName . ": " . implode(", ", $headerValues)));
         }
 
         echo (string)$response->getBody();

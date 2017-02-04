@@ -145,7 +145,7 @@ class Dispatcher
     {
         // The query string interpreted as an object
         $params = $this->request->getQueryParams();
-        return $params ? json_decode(json_encode($params)) : null;
+        return $params ? json_decode(json_encode($params)) : new \stdClass;
     }
 
     private function runInputParser()
@@ -414,7 +414,7 @@ class Dispatcher
 }
 
 /*
-Based on 
+Based on
 http://stackoverflow.com/a/26760943
 */
 

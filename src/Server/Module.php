@@ -2,7 +2,7 @@
 namespace Phidias\Api\Server;
 
 use Phidias\Utilities\Configuration;
-use Phidias\Utilities\Debugger;
+use Phidias\Utilities\Debugger as Debug;
 use Phidias\Api\Server;
 use Phidias\Api\Server\Module\Installer;
 
@@ -33,13 +33,22 @@ class Module
 
     public static function initialize()
     {
+        Debug::startBlock("initializing");
+
+        Debug::startBlock("initialization scripts");
         foreach (self::$loadedModules as $path) {
             self::runInitialization($path);
         }
+        Debug::endBlock();
 
+
+        Debug::startBlock("resource definitions");
         foreach (self::$loadedModules as $path) {
             self::loadResources($path);
         }
+        Debug::endBlock();
+
+        Debug::endBlock();
     }
 
     public static function getLoadedModules()
@@ -50,9 +59,11 @@ class Module
 
     private static function runInitialization($path)
     {
+        Debug::startBlock($path);
         foreach (self::getFileList($path."/".self::DIR_INITIALIZATION) as $file) {
             include $file;
         }
+        Debug::endBlock();
     }
 
     private static function loadConfiguration($path)
@@ -64,9 +75,13 @@ class Module
 
     private static function loadResources($path)
     {
+        Debug::startBlock($path);
         foreach (self::getFileList($path."/".self::DIR_RESOURCES) as $file) {
-            Server::resource(include $file);
+            Debug::startBlock($file);
+                Server::resource(include $file);
+            Debug::endBlock();
         }
+        Debug::endBlock();
     }
 
 
@@ -119,6 +134,40 @@ class Module
             $installer->finalize();
         }
     }
+
+    /*
+    Update/Create the database for the given modules
+    */
+    public static function patchDatabase(array $modules = null, array $configuration = [])
+    {
+        if ($modules == null) {
+            $modules = self::getLoadedModules();
+        }
+
+        $missingModules = [];
+        foreach ($modules as $path) {
+            if (!is_dir($path)) {
+                $missingModules[] = $path;
+            }
+        }
+
+        if ($missingModules) {
+            $error = "The following modules are missing:\n";
+            $error .= implode("\n", $missingModules);
+            trigger_error($error, E_USER_ERROR);
+        }
+
+        foreach ($modules as $path) {
+            self::loadConfiguration($path);
+        }
+        Configuration::set($configuration);
+
+        foreach ($modules as $path) {
+            $installer = new Installer($path);
+            $installer->createDatabase();
+        }
+    }
+
 
     /**
      * List files found in every module's $folder.

@@ -79,7 +79,7 @@ It will refresh itself by requesting the resource in JSON format
 
         .message .body {
             width: 100%;
-            border-collapse: collapse;            
+            border-collapse: collapse;
         }
 
         .message .body td {
@@ -96,7 +96,7 @@ It will refresh itself by requesting the resource in JSON format
         .message .body tbody td {
             vertical-align: top;
             color: #222;
-            border-top: 1px solid #ddd;            
+            border-top: 1px solid #ddd;
         }
 
         .message .body .duration {
@@ -209,6 +209,7 @@ It will refresh itself by requesting the resource in JSON format
                     <tbody>
                         <tr>
                             <td class="duration" ng-bind="message.duration|seconds"></td>
+                            <td>{{ (message.timestamp - vm.data.timestamp)|seconds }}</td>
                             <td class="separator">
                                 <div class="toggler" ng-bind="message.isOpen ? '-' : '+'"></div>
                             </td>
@@ -404,7 +405,7 @@ It will refresh itself by requesting the resource in JSON format
                     </div>
 
                 </div>
-                
+
             </div>
 
 

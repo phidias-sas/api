@@ -1,0 +1,21 @@
+{
+    "name": "phidias/documentation.api",
+    "description": "Provide documentation for your API",
+    "license": "GPL-3.0",
+    "authors": [
+        {
+            "name": "Santiago Cortés",
+            "email": "santiago.cortes@phidias.com"
+        }
+    ],
+
+    "autoload": {
+        "psr-4": {
+            "Phidias\\Documentation\\": "src/"
+        }
+    },
+
+    "require": {
+        "phidias/json": "*"
+    }
+}

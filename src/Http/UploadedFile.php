@@ -108,9 +108,12 @@ class UploadedFile implements UploadedFileInterface
         if ($this->moved) {
             throw new RuntimeException('Cannot retrieve stream after it has already been moved');
         }
-        if ($this->stream instanceof StreamInterface) {
-            return $this->stream;
-        }
+
+        // Always create a new stream, since this->stream MAY be closed and this can cause errors
+        // if ($this->stream instanceof StreamInterface) {
+        //     return $this->stream;
+        // }
+
         $this->stream = new Stream($this->file);
         return $this->stream;
     }

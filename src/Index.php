@@ -1,4 +1,4 @@
-<?php 
+<?php
 namespace Phidias\Api;
 
 use Phidias\Api\Index\Result;
@@ -36,7 +36,7 @@ class Index
     public function find($path)
     {
         $path   = trim($path, " \t./");
-        $crumbs = explode("/", $path);
+        $crumbs = array_map('urldecode', explode("/", $path));
 
         $results = [];
         $this->retrieve($crumbs, $results);

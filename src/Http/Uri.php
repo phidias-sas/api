@@ -188,7 +188,8 @@ class Uri implements UriInterface
      */
     public function getPath()
     {
-        return urldecode($this->path);
+        // return urldecode($this->path);
+        return $this->path;
     }
 
     /**

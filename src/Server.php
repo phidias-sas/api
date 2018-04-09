@@ -13,6 +13,16 @@ class Server
 {
     private static $index;
     private static $isInitialized;
+    private static $resourceHandlers = [];
+
+    /**
+     * Register a resource handler
+     */
+    public static function registerResourceHandler($callback)
+    {
+        self::$resourceHandlers[] = $callback;
+    }
+
 
     /**
      * Declare a resource
@@ -149,19 +159,25 @@ class Server
 
     public static function getResource($path)
     {
+        $retval  = null;
         $results = self::getIndex()->find($path);
-        if (!$results) {
-            throw new Server\Exception\ResourceNotFound;
+
+        if ($results) {
+            foreach ($results as $result) {
+                $resource = Resource::factory($result->data);
+                $resource->setAttributes($result->attributes);
+                $retval = $retval ? $retval->merge($resource) : $resource;
+            }
         }
 
-        $retval = null;
-        foreach ($results as $result) {
-            $resource = Resource::factory($result->data);
-            $resource->setAttributes($result->attributes);
-            $retval = $retval ? $retval->merge($resource) : $resource;
+        /* Obtain resource by invoking external handlers */
+        foreach (self::$resourceHandlers as $handler) {
+            if ($resource = $handler($path)) {
+                $retval = $retval ? $retval->merge($resource) : $resource;
+            }
         }
 
-        if ($retval->getIsAbstract()) {
+        if (!$retval || $retval->getIsAbstract()) {
             throw new Server\Exception\ResourceNotFound;
         }
 

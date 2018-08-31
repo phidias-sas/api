@@ -7,29 +7,50 @@ Phidias API async client
 This class is intended to be used inside you application logic, to make
 asynchronous http requests to your Phidias Server's resources.
 
-use Phidias\Api\Client as Client;
+use Phidias\Api\Client as ApiClient;
 
-Client::post("/some/resource", [
-    "message" => "hello!"
-]);
+$myApi = new ApiClient();  // without constructor arguments it will use the current running server
 
-Client::put("/threads/all/deliver");
-
-
+$myApi->post("/some/resource", ["message" => "hello!"]);
+$myApi->put("/threads/all/deliver");
 
 */
 
 class Client
 {
-    public static function run($method, $url, $postdata = null)
+    private $hostName;
+    private $requestScheme;
+    private $contextPrefix;
+
+    public function construct($hostName = null, $requestScheme = null, $contextPrefix = null)
     {
-        $method = strtoupper($method);
-        $url    = trim($url, '/');
-        $host   = $_SERVER["HTTP_HOST"];
-        $fullUrl = $_SERVER["REQUEST_SCHEME"] . "://" . $host . $_SERVER["CONTEXT_PREFIX"] . $url;
+        if (!$hostName) {
+            $this->setHost($_SERVER["HTTP_HOST"], $_SERVER["REQUEST_SCHEME"], $_SERVER["CONTEXT_PREFIX"]);
+            return;
+        }
+
+        $this->setHost($hostName, $requestScheme, $contextPrefix);
+    }
+
+    public function setHost($hostName, $requestScheme = "https", $contextPrefix = null)
+    {
+        $this->hostName      = $hostName;
+        $this->requestScheme = $requestScheme;
+        $this->contextPrefix = $contextPrefix;
+    }
+
+    public function getBaseUrl()
+    {
+        return trim("{$this->requestScheme}://{$this->hostName}{$this->contextPrefix}/", "/");
+    }
+
+    public function execute($method, $url, $postdata = null)
+    {
+        $method  = strtoupper($method);
+        $fullUrl = $this->getBaseUrl() . "/" . trim($url, '/');
 
         $headers = [];
-        $headers["Host"] = $host;
+        $headers["Host"] = $this->hostName;
         if ($postdata) {
             $headers["Content-Type"] = 'application/json';
         }
@@ -57,23 +78,23 @@ class Client
         }
     }
 
-    public static function get($url)
+    public function get($url)
     {
-        return self::run("GET", $url, $postdata);
+        return $this->execute("GET", $url);
     }
 
-    public static function post($url, $postdata = null)
+    public function post($url, $postdata = null)
     {
-        return self::run("POST", $url, $postdata);
+        return $this->execute("POST", $url, $postdata);
     }
 
-    public static function put($url, $postdata = null)
+    public function put($url, $postdata = null)
     {
-        return self::run("PUT", $url, $postdata);
+        return $this->execute("PUT", $url, $postdata);
     }
 
-    public static function delete($url, $postdata = null)
+    public function delete($url, $postdata = null)
     {
-        return self::run("DELETE", $url, $postdata);
+        return $this->execute("DELETE", $url, $postdata);
     }
 }

@@ -22,7 +22,7 @@ class Client
     private $requestScheme;
     private $contextPrefix;
 
-    public function construct($hostName = null, $requestScheme = null, $contextPrefix = null)
+    public function __construct($hostName = null, $requestScheme = null, $contextPrefix = null)
     {
         if (!$hostName) {
             $this->setHost($_SERVER["HTTP_HOST"], $_SERVER["REQUEST_SCHEME"], $_SERVER["CONTEXT_PREFIX"]);
@@ -34,6 +34,19 @@ class Client
 
     public function setHost($hostName, $requestScheme = "https", $contextPrefix = null)
     {
+        // Look for embeded data in hostName (e.g. "https://some.host.name/prefix/")
+        $parts = explode("://", $hostName);
+        if (count($parts) == 2) {
+            $requestScheme = $parts[0];
+            $hostName      = $parts[1];
+
+            $hostParts = explode("/", $hostName, 2);
+            if (count($hostParts) == 2) {
+                $hostName = $hostParts[0];
+                $contextPrefix = "/" . trim($hostParts[1],"/");
+            }
+        }
+
         $this->hostName      = $hostName;
         $this->requestScheme = $requestScheme;
         $this->contextPrefix = $contextPrefix;

@@ -188,7 +188,6 @@ class Uri implements UriInterface
      */
     public function getPath()
     {
-        // return urldecode($this->path);
         return $this->path;
     }
 
@@ -504,11 +503,11 @@ class Uri implements UriInterface
      */
     private function filterPath($path)
     {
-        $path = preg_replace_callback(
-            '/(?:[^' . self::CHAR_UNRESERVED . ':@&=\+\$,\/;%]+|%(?![A-Fa-f0-9]{2}))/',
-            [$this, 'urlEncodeChar'],
-            $path
-        );
+        // $path = preg_replace_callback(
+        //     '/(?:[^' . self::CHAR_UNRESERVED . ':@&=\+\$,\/;%]+|%(?![A-Fa-f0-9]{2}))/',
+        //     [$this, 'urlEncodeChar'],
+        //     $path
+        // );
 
         if (empty($path)) {
             // No path

@@ -36,7 +36,12 @@ class Index
     public function find($path)
     {
         $path   = trim($path, " \t./");
-        $crumbs = array_map('urldecode', explode("/", $path));
+        $crumbs = explode("/", $path);
+
+        /* Decode slashes */
+        foreach ($crumbs as &$crumb) {
+            $crumb = str_replace("%2F", "/", $crumb);
+        }
 
         $results = [];
         $this->retrieve($crumbs, $results);

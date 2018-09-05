@@ -80,6 +80,8 @@ class Client
         $command .= ' '.$fullUrl;
 
         self::execInBackground($command);
+
+        return $command;
     }
 
     private static function execInBackground($cmd)

@@ -25,6 +25,10 @@ class Server
         Module::install();
     }
 
+    public static function registerResourceHandler($callback)
+    {
+    }
+
     public static function onInitialize()
     {
     }

@@ -54,8 +54,8 @@ class Client
 
     public function getBaseUrl()
     {
-        // return trim("https://{$this->hostName}{$this->contextPrefix}/", "/");
-        return trim("{$this->requestScheme}://{$this->hostName}{$this->contextPrefix}/", "/");
+        return trim("https://{$this->hostName}{$this->contextPrefix}/", "/");
+        // return trim("{$this->requestScheme}://{$this->hostName}{$this->contextPrefix}/", "/");
     }
 
     public function execute($method, $url, $postdata = null)

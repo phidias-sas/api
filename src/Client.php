@@ -54,8 +54,8 @@ class Client
 
     public function getBaseUrl()
     {
-        // return trim("{$this->requestScheme}://{$this->hostName}{$this->contextPrefix}/", "/");
-        return trim("https://{$this->hostName}{$this->contextPrefix}/", "/");
+        // return trim("https://{$this->hostName}{$this->contextPrefix}/", "/");
+        return trim("{$this->requestScheme}://{$this->hostName}{$this->contextPrefix}/", "/");
     }
 
     public function execute($method, $url, $postdata = null)
@@ -75,7 +75,7 @@ class Client
         }
 
         if ($postdata) {
-            $command .= " -d ".escapeshellarg(json_encode($postdata));
+            $command .= " -d ".self::escapeCmdArg(json_encode($postdata));
         }
 
         $command .= ' '.$fullUrl;
@@ -83,6 +83,11 @@ class Client
         self::execInBackground($command);
 
         return $command;
+    }
+
+    private static function escapeCmdArg($value)
+    {
+        return str_replace('"', '\"', $value);
     }
 
     private static function execInBackground($cmd)

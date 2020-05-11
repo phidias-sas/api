@@ -10,7 +10,7 @@ class Response implements ResponseInterface
     protected $statusCode;
     protected $reasonPhrase;
 
-    public function __construct($code = null, $reasonPhrase = null)
+    public function __construct($code = 200, $reasonPhrase = null)
     {
         $this->statusCode   = $code;
         $this->reasonPhrase = $reasonPhrase;

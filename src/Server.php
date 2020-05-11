@@ -2,12 +2,10 @@
 namespace Phidias\Api;
 
 use Phidias\Utilities\Debugger as Debug;
-
 use Phidias\Api\Server\Module;
-
 use Phidias\Api\Http\ServerRequest;
 use Phidias\Api\Http\Response;
-use Phidias\Api\Http\Stream;
+use Phidias\Api\Log\Log;
 
 class Server
 {
@@ -124,6 +122,7 @@ class Server
      */
     public static function execute(ServerRequest $request)
     {
+        $start = microtime(true);
         self::initialize();
 
         $method = $request->getMethod();
@@ -153,6 +152,9 @@ class Server
         }
 
         Debug::endBlock();
+
+        $duration = microtime(true) - $start;
+        Log::save($request, $response, $duration);
 
         return $response;
     }

@@ -32,7 +32,9 @@ class Exception extends \Exception
 
     public function filterResponse($response)
     {
-        if ( !$response->getStatusCode() ) {
+        $responseStatusCode = $response->getStatusCode();
+
+        if ( !$responseStatusCode || $responseStatusCode == 200 ) {
             /*
             keep in mind: 
             self::$statusCode refers to the value declared in this file (500)

@@ -243,16 +243,16 @@ class Controller
 
     public function apple($input)
     {
-        if (!isset($input->code)) {
+        if (!isset($input->email)) {
             throw new Exception\InvalidRequest("no email specified");
         }
 
-        return self::getTokenFromAppleAuthorizationCode($input->code);
+        return self::getTokenFromAppleAuthorizationCode($input->email, $input->code);
     }
 
-    private static function getTokenFromAppleAuthorizationCode($code)
+    private static function getTokenFromAppleAuthorizationCode($email, $code)
     {
-        $payload = self::validateEmail($code);
+        $payload = self::validateEmail($email);
 
         return new Token("bearer", $payload);
     }

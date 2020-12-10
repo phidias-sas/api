@@ -31,10 +31,24 @@ class Apache implements EnvironmentInterface
         $reasonPhrase    = $response->getReasonPhrase();
         $protocolVersion = $response->getProtocolVersion();
 
+        $headers = [];
+        $hasCors = false;
+        foreach ($response->getHeaders() as $headerName => $headerValues) {
+            if (strpos($headerName, 'Access-Control-') === 0) {
+                $hasCors = true;
+            }
+            $headers[$headerName] = $headerValues;
+        }
+
+        /* Default CORS headers */
+        if (!$hasCors) {
+            $headers["Access-Control-Allow-Origin"] = ['*'];
+        }
+
         $GLOBALS["http_response_code"] = $statusCode;
         header("HTTP/{$protocolVersion} {$statusCode} {$reasonPhrase}");
 
-        foreach ($response->getHeaders() as $headerName => $headerValues) {
+        foreach ($headers as $headerName => $headerValues) {
             header(str_replace("\n", "", $headerName . ": " . implode(", ", $headerValues)));
         }
 

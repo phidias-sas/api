@@ -78,7 +78,7 @@ class Module
         Debug::startBlock($path);
         foreach (self::getFileList($path."/".self::DIR_RESOURCES) as $file) {
             Debug::startBlock($file);
-                Server::resource(include $file);
+                Server::resource(include $file, null, $file);
             Debug::endBlock();
         }
         Debug::endBlock();

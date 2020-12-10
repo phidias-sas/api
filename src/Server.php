@@ -35,14 +35,16 @@ class Server
      *    "/myresourcethree" => <Resource>
      * ])
      */
-    public static function resource($path, $resource = null)
+    public static function resource($path, $resource = null, $sourceFilename = null)
     {
         if (is_array($path)) {
             foreach ($path as $url => $resourceDeclaration) {
-                self::resource($url, $resourceDeclaration);
+                self::resource($url, $resourceDeclaration, $sourceFilename);
             }
             return;
         }
+
+        $resource["__src"] = $sourceFilename;
 
         self::getIndex()->store($path, $resource);
         return $resource;

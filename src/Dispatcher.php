@@ -122,7 +122,7 @@ class Dispatcher
             $this->renderOutput();
         } catch (\Exception $e) {
             $renderException = new Dispatcher\Exception\RenderException($e);
-            $this->response = $renderException->filterResponse($response);
+            $this->response = $renderException->filterResponse($this->response);
         }
 
         return $this->response;

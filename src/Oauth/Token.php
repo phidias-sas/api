@@ -29,7 +29,8 @@ class Token
         try {
             self::$payload = JWT::decode($token, self::$secret, ["HS256"]);
         } catch (\Exception $e) {
-            throw new Exception\InvalidToken;
+            // throw new Exception\InvalidToken;
+            throw new \Exception('InvalidToken srcoauthToken');
         }
     }
 

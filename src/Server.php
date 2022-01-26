@@ -167,7 +167,14 @@ class Server
         $results = self::getIndex()->find($path);
 
         if ($results) {
+            $fallbackResult = null;
+
             foreach ($results as $result) {
+                if (isset($result->data['isfallback']) && $result->data['isfallback'] ) {
+                    $fallbackResult = $result;
+                    continue;
+                }
+
                 $resource = Resource::factory($result->data);
                 $resource->setAttributes($result->attributes);
                 $retval = $retval ? $retval->merge($resource) : $resource;
@@ -182,6 +189,12 @@ class Server
         }
 
         if (!$retval || $retval->getIsAbstract()) {
+            if ($fallbackResult) {
+                $fallbackResource = Resource::factory($fallbackResult->data);
+                $fallbackResource->setAttributes($fallbackResult->attributes);
+                return $retval ? $retval->merge($fallbackResource) : $fallbackResource;
+            }
+
             throw new Server\Exception\ResourceNotFound;
         }
 

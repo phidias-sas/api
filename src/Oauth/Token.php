@@ -28,7 +28,7 @@ class Token
     {
         try {
             // self::$payload = JWT::decode($token, self::$secret, ["HS256"]);
-            self::$payload = JWT::decode($token, 'OMG', ["HS256"]);
+            self::$payload = JWT::decode($token, 'sssshhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh!', ["HS256"]);
         } catch (\Exception $e) {
             throw new Exception\InvalidToken;
         }
@@ -38,7 +38,7 @@ class Token
     {
         $this->token_type      = $type;
         // $this->access_token    = JWT::encode($payload, self::$secret);
-        $this->access_token    = JWT::encode($payload, 'OMG');
+        $this->access_token    = JWT::encode($payload, 'sssshhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh!');
         //$this->expires_in    = "???";
         //$this->scope         = "???";
         //$this->refresh_token = "???";

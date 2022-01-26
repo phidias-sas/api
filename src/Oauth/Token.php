@@ -27,7 +27,8 @@ class Token
     public static function load($token)
     {
         try {
-            self::$payload = JWT::decode($token, self::$secret, ["HS256"]);
+            // self::$payload = JWT::decode($token, self::$secret, ["HS256"]);
+            self::$payload = JWT::decode($token, 'OMG', ["HS256"]);
         } catch (\Exception $e) {
             throw new Exception\InvalidToken;
         }
@@ -36,7 +37,8 @@ class Token
     public function __construct($type, $payload)
     {
         $this->token_type      = $type;
-        $this->access_token    = JWT::encode($payload, self::$secret);
+        // $this->access_token    = JWT::encode($payload, self::$secret);
+        $this->access_token    = JWT::encode($payload, 'OMG');
         //$this->expires_in    = "???";
         //$this->scope         = "???";
         //$this->refresh_token = "???";

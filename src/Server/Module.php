@@ -48,6 +48,11 @@ class Module
         }
         Debug::endBlock();
 
+        // PHP configuration
+        if($datetime = Configuration::get('phidias.current_timezone')){
+            date_default_timezone_set($datetime);
+        }
+
         Debug::endBlock();
     }
 
